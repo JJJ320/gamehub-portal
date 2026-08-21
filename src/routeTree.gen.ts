@@ -10,33 +10,92 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as CategoriasRouteImport } from './routes/categorias'
+import { Route as JogosRouteImport } from './routes/jogos'
+import { Route as MaisJogadosRouteImport } from './routes/mais-jogados'
+import { Route as NovosRouteImport } from './routes/novos'
+import { Route as JogoSlugRouteImport } from './routes/jogo.$slug'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CategoriasRoute = CategoriasRouteImport.update({
+  id: '/categorias',
+  path: '/categorias',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const JogosRoute = JogosRouteImport.update({
+  id: '/jogos',
+  path: '/jogos',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MaisJogadosRoute = MaisJogadosRouteImport.update({
+  id: '/mais-jogados',
+  path: '/mais-jogados',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const NovosRoute = NovosRouteImport.update({
+  id: '/novos',
+  path: '/novos',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const JogoSlugRoute = JogoSlugRouteImport.update({
+  id: '/jogo/$slug',
+  path: '/jogo/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/categorias': typeof CategoriasRoute
+  '/jogos': typeof JogosRoute
+  '/mais-jogados': typeof MaisJogadosRoute
+  '/novos': typeof NovosRoute
+  '/jogo/$slug': typeof JogoSlugRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/categorias': typeof CategoriasRoute
+  '/jogos': typeof JogosRoute
+  '/mais-jogados': typeof MaisJogadosRoute
+  '/novos': typeof NovosRoute
+  '/jogo/$slug': typeof JogoSlugRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/categorias': typeof CategoriasRoute
+  '/jogos': typeof JogosRoute
+  '/mais-jogados': typeof MaisJogadosRoute
+  '/novos': typeof NovosRoute
+  '/jogo/$slug': typeof JogoSlugRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    '/' | '/categorias' | '/jogos' | '/mais-jogados' | '/novos' | '/jogo/$slug'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to:
+    '/' | '/categorias' | '/jogos' | '/mais-jogados' | '/novos' | '/jogo/$slug'
+  id:
+    | '__root__'
+    | '/'
+    | '/categorias'
+    | '/jogos'
+    | '/mais-jogados'
+    | '/novos'
+    | '/jogo/$slug'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  CategoriasRoute: typeof CategoriasRoute
+  JogosRoute: typeof JogosRoute
+  MaisJogadosRoute: typeof MaisJogadosRoute
+  NovosRoute: typeof NovosRoute
+  JogoSlugRoute: typeof JogoSlugRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -48,11 +107,51 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/categorias': {
+      id: '/categorias'
+      path: '/categorias'
+      fullPath: '/categorias'
+      preLoaderRoute: typeof CategoriasRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/jogos': {
+      id: '/jogos'
+      path: '/jogos'
+      fullPath: '/jogos'
+      preLoaderRoute: typeof JogosRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/mais-jogados': {
+      id: '/mais-jogados'
+      path: '/mais-jogados'
+      fullPath: '/mais-jogados'
+      preLoaderRoute: typeof MaisJogadosRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/novos': {
+      id: '/novos'
+      path: '/novos'
+      fullPath: '/novos'
+      preLoaderRoute: typeof NovosRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/jogo/$slug': {
+      id: '/jogo/$slug'
+      path: '/jogo/$slug'
+      fullPath: '/jogo/$slug'
+      preLoaderRoute: typeof JogoSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  CategoriasRoute: CategoriasRoute,
+  JogosRoute: JogosRoute,
+  MaisJogadosRoute: MaisJogadosRoute,
+  NovosRoute: NovosRoute,
+  JogoSlugRoute: JogoSlugRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
