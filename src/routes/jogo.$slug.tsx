@@ -48,7 +48,7 @@ function GameNotFound() {
           Esse título não está no catálogo demonstrativo.
         </p>
         <Button variant="hero" className="mt-6" asChild>
-          <Link to="/jogos">Ver todos os jogos</Link>
+          <Link to="/jogos" search={{ q: undefined, cat: undefined }}>Ver todos os jogos</Link>
         </Button>
       </main>
       <SiteFooter />
@@ -85,7 +85,7 @@ function GameDetail() {
         <main className="mx-auto -mt-24 max-w-7xl px-4 pb-4 sm:px-6">
           <nav className="relative text-xs text-muted-foreground">
             <Link to="/" className="hover:text-primary">Início</Link> /{" "}
-            <Link to="/jogos" className="hover:text-primary">Todos os Jogos</Link> / {game.title}
+            <Link to="/jogos" search={{ q: undefined, cat: undefined }} className="hover:text-primary">Todos os Jogos</Link> / {game.title}
           </nav>
 
           <div className="mt-4 grid gap-6 lg:grid-cols-[220px_minmax(0,1fr)]">

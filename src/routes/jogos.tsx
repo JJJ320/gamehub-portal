@@ -8,13 +8,14 @@ import { SiteHeader } from "@/components/site-header";
 import { categories, getCategory, searchGames } from "@/data/games";
 import { cn } from "@/lib/utils";
 
-type GamesSearch = { q?: string; cat?: string };
+type GamesSearch = { q: string | undefined; cat: string | undefined };
 
 export const Route = createFileRoute("/jogos")({
   validateSearch: (search: Record<string, unknown>): GamesSearch => ({
-    q: typeof search.q === "string" && search.q ? search.q : undefined,
-    cat: typeof search.cat === "string" && search.cat ? search.cat : undefined,
+    q: typeof search["q"] === "string" && search["q"] ? search["q"] : undefined,
+    cat: typeof search["cat"] === "string" && search["cat"] ? search["cat"] : undefined,
   }),
+
   head: () => ({
     meta: [
       { title: "Todos os Jogos — GameHub" },
