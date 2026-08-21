@@ -24,7 +24,7 @@ export function SiteFooter() {
             Navegar
           </h3>
           <ul className="mt-3 space-y-2 text-sm">
-            <li><Link to="/jogos" className="text-foreground/80 hover:text-primary">Todos os Jogos</Link></li>
+            <li><Link to="/jogos" search={{ q: undefined, cat: undefined }} className="text-foreground/80 hover:text-primary">Todos os Jogos</Link></li>
             <li><Link to="/categorias" className="text-foreground/80 hover:text-primary">Categorias</Link></li>
             <li><Link to="/mais-jogados" className="text-foreground/80 hover:text-primary">Mais Jogados</Link></li>
             <li><Link to="/novos" className="text-foreground/80 hover:text-primary">Novos Jogos</Link></li>
