@@ -92,7 +92,7 @@ function AuthPage() {
 
     setBusy("login");
     const { error } = await supabase.auth.signInWithPassword({
-      email: emailResult.data,
+      email: emailResult.data!,
       password,
     });
     setBusy(null);
