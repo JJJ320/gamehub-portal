@@ -15,6 +15,7 @@ import { Route as CategoriasRouteImport } from './routes/categorias'
 import { Route as JogosRouteImport } from './routes/jogos'
 import { Route as MaisJogadosRouteImport } from './routes/mais-jogados'
 import { Route as NovosRouteImport } from './routes/novos'
+import { Route as PerfilRouteImport } from './routes/perfil'
 import { Route as JogoSlugRouteImport } from './routes/jogo.$slug'
 
 const IndexRoute = IndexRouteImport.update({
@@ -47,6 +48,11 @@ const NovosRoute = NovosRouteImport.update({
   path: '/novos',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PerfilRoute = PerfilRouteImport.update({
+  id: '/perfil',
+  path: '/perfil',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const JogoSlugRoute = JogoSlugRouteImport.update({
   id: '/jogo/$slug',
   path: '/jogo/$slug',
@@ -60,6 +66,7 @@ export interface FileRoutesByFullPath {
   '/jogos': typeof JogosRoute
   '/mais-jogados': typeof MaisJogadosRoute
   '/novos': typeof NovosRoute
+  '/perfil': typeof PerfilRoute
   '/jogo/$slug': typeof JogoSlugRoute
 }
 export interface FileRoutesByTo {
@@ -69,6 +76,7 @@ export interface FileRoutesByTo {
   '/jogos': typeof JogosRoute
   '/mais-jogados': typeof MaisJogadosRoute
   '/novos': typeof NovosRoute
+  '/perfil': typeof PerfilRoute
   '/jogo/$slug': typeof JogoSlugRoute
 }
 export interface FileRoutesById {
@@ -79,6 +87,7 @@ export interface FileRoutesById {
   '/jogos': typeof JogosRoute
   '/mais-jogados': typeof MaisJogadosRoute
   '/novos': typeof NovosRoute
+  '/perfil': typeof PerfilRoute
   '/jogo/$slug': typeof JogoSlugRoute
 }
 export interface FileRouteTypes {
@@ -90,6 +99,7 @@ export interface FileRouteTypes {
     | '/jogos'
     | '/mais-jogados'
     | '/novos'
+    | '/perfil'
     | '/jogo/$slug'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -99,6 +109,7 @@ export interface FileRouteTypes {
     | '/jogos'
     | '/mais-jogados'
     | '/novos'
+    | '/perfil'
     | '/jogo/$slug'
   id:
     | '__root__'
@@ -108,6 +119,7 @@ export interface FileRouteTypes {
     | '/jogos'
     | '/mais-jogados'
     | '/novos'
+    | '/perfil'
     | '/jogo/$slug'
   fileRoutesById: FileRoutesById
 }
@@ -118,6 +130,7 @@ export interface RootRouteChildren {
   JogosRoute: typeof JogosRoute
   MaisJogadosRoute: typeof MaisJogadosRoute
   NovosRoute: typeof NovosRoute
+  PerfilRoute: typeof PerfilRoute
   JogoSlugRoute: typeof JogoSlugRoute
 }
 
@@ -165,6 +178,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof NovosRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/perfil': {
+      id: '/perfil'
+      path: '/perfil'
+      fullPath: '/perfil'
+      preLoaderRoute: typeof PerfilRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/jogo/$slug': {
       id: '/jogo/$slug'
       path: '/jogo/$slug'
@@ -182,6 +202,7 @@ const rootRouteChildren: RootRouteChildren = {
   JogosRoute: JogosRoute,
   MaisJogadosRoute: MaisJogadosRoute,
   NovosRoute: NovosRoute,
+  PerfilRoute: PerfilRoute,
   JogoSlugRoute: JogoSlugRoute,
 }
 export const routeTree = rootRouteImport
