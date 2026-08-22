@@ -130,10 +130,13 @@ function AuthPage() {
     });
     setBusy(null);
     if (error) {
+      const msg = error.message.toLowerCase();
       setFormError(
-        error.message.toLowerCase().includes("already")
+        msg.includes("already")
           ? "Este e-mail já possui uma conta. Faça login."
-          : error.message,
+          : msg.includes("weak") || msg.includes("easy to guess")
+            ? "Esta senha é muito comum. Escolha uma senha mais forte, com letras, números e símbolos."
+            : error.message,
       );
       return;
     }
