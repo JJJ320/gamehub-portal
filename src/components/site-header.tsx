@@ -1,8 +1,17 @@
 import { Link, useNavigate } from "@tanstack/react-router";
-import { Gamepad2, Menu, Search, User, X } from "lucide-react";
+import { Gamepad2, LogOut, Menu, Search, User, UserCircle2, X } from "lucide-react";
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
 
 const navItems = [
@@ -18,10 +27,25 @@ export function SiteHeader() {
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
 
+  const { user, profile, loading, signOut } = useAuth();
+
+  const displayName =
+    profile?.display_name ??
+    (user?.user_metadata?.["display_name"] as string | undefined) ??
+    user?.email?.split("@")[0] ??
+    "Jogador";
+  const initials = displayName.slice(0, 2).toUpperCase();
+
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     setOpen(false);
     navigate({ to: "/jogos", search: { q: query.trim() || undefined, cat: undefined } });
+  };
+
+  const handleSignOut = async () => {
+    setOpen(false);
+    await signOut();
+    navigate({ to: "/", replace: true });
   };
 
   return (
@@ -63,9 +87,52 @@ export function SiteHeader() {
               />
             </div>
           </form>
-          <Button variant="hero" size="sm" className="hidden sm:inline-flex">
-            <User className="size-4" /> Entrar
-          </Button>
+          {loading ? (
+            <div className="hidden h-9 w-24 animate-pulse rounded-lg bg-secondary sm:block" />
+          ) : user ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  aria-label="Abrir menu da conta"
+                  className="hidden items-center gap-2 rounded-lg border border-border bg-surface px-2 py-1.5 text-sm font-medium transition-colors hover:bg-secondary sm:flex"
+                >
+                  {profile?.avatar_url ? (
+                    <img
+                      src={profile.avatar_url}
+                      alt={`Avatar de ${displayName}`}
+                      className="size-7 rounded-full object-cover"
+                    />
+                  ) : (
+                    <span className="grid size-7 place-items-center rounded-full bg-gradient-violet text-[11px] font-bold text-primary-foreground">
+                      {initials}
+                    </span>
+                  )}
+                  <span className="max-w-24 truncate">{displayName}</span>
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuLabel className="truncate font-normal text-muted-foreground">
+                  {user.email}
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem asChild>
+                  <Link to="/perfil" className="flex items-center gap-2">
+                    <UserCircle2 className="size-4" /> Meu perfil
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => void handleSignOut()}>
+                  <LogOut className="size-4" /> Sair
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : (
+            <Button variant="hero" size="sm" className="hidden sm:inline-flex" asChild>
+              <Link to="/auth" search={{ redirect: undefined }}>
+                <User className="size-4" /> Entrar
+              </Link>
+            </Button>
+          )}
           <button
             type="button"
             aria-label="Abrir menu"
@@ -109,9 +176,24 @@ export function SiteHeader() {
               </Link>
             ))}
           </nav>
-          <Button variant="hero" className="w-full">
-            <User className="size-4" /> Entrar
-          </Button>
+          {user ? (
+            <div className="grid gap-2">
+              <Button variant="hero" className="w-full" asChild>
+                <Link to="/perfil" onClick={() => setOpen(false)}>
+                  <UserCircle2 className="size-4" /> Meu perfil
+                </Link>
+              </Button>
+              <Button variant="outline" className="w-full" onClick={() => void handleSignOut()}>
+                <LogOut className="size-4" /> Sair
+              </Button>
+            </div>
+          ) : (
+            <Button variant="hero" className="w-full" asChild>
+              <Link to="/auth" search={{ redirect: undefined }} onClick={() => setOpen(false)}>
+                <User className="size-4" /> Entrar
+              </Link>
+            </Button>
+          )}
         </div>
       </div>
     </header>
