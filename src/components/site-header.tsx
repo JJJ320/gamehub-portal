@@ -176,9 +176,24 @@ export function SiteHeader() {
               </Link>
             ))}
           </nav>
-          <Button variant="hero" className="w-full">
-            <User className="size-4" /> Entrar
-          </Button>
+          {user ? (
+            <div className="grid gap-2">
+              <Button variant="hero" className="w-full" asChild>
+                <Link to="/perfil" onClick={() => setOpen(false)}>
+                  <UserCircle2 className="size-4" /> Meu perfil
+                </Link>
+              </Button>
+              <Button variant="outline" className="w-full" onClick={() => void handleSignOut()}>
+                <LogOut className="size-4" /> Sair
+              </Button>
+            </div>
+          ) : (
+            <Button variant="hero" className="w-full" asChild>
+              <Link to="/auth" search={{ redirect: undefined }} onClick={() => setOpen(false)}>
+                <User className="size-4" /> Entrar
+              </Link>
+            </Button>
+          )}
         </div>
       </div>
     </header>
