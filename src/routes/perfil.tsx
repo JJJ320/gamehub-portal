@@ -1,8 +1,12 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { Clock, Heart, Loader2, LogOut, Save } from "lucide-react";
+import {
+  Clock,
+  Heart,
+  Loader2,
+  LogOut,
+  Save,
+} from "lucide-react";
 import { useEffect, useState } from "react";
-import { updateProfile } from "firebase/auth";
-import { doc, setDoc } from "firebase/firestore";
 import { z } from "zod";
 
 import { SiteFooter } from "@/components/site-footer";
@@ -10,9 +14,8 @@ import { SiteHeader } from "@/components/site-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { auth } from "@/firebase";
-import { db } from "@/firebase";
 import { useAuth } from "@/hooks/use-auth";
+import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/perfil")({
   ssr: false,
@@ -93,6 +96,9 @@ function ProfilePage() {
 
   const [saving, setSaving] = useState(false);
 
+  /*
+   * Redireciona usuários não autenticados.
+   */
   useEffect(() => {
     if (!loading && !user) {
       navigate({
@@ -105,22 +111,33 @@ function ProfilePage() {
     }
   }, [loading, user, navigate]);
 
+  /*
+   * Carrega os dados do perfil.
+   */
   useEffect(() => {
     setDisplayName(profile?.display_name ?? "");
     setAvatarUrl(profile?.avatar_url ?? "");
-  }, [profile?.display_name, profile?.avatar_url]);
+  }, [
+    profile?.display_name,
+    profile?.avatar_url,
+  ]);
 
+  /*
+   * Enquanto o Supabase verifica a sessão.
+   */
   if (loading || !user) {
     return (
       <div className="min-h-screen">
         <SiteHeader />
 
         <main className="mx-auto grid max-w-7xl place-items-center px-4 py-24">
-          <Loader2 className="size-6 animate-spin text-primary" />
+          <div className="flex flex-col items-center">
+            <Loader2 className="size-6 animate-spin text-primary" />
 
-          <p className="mt-3 text-sm text-muted-foreground">
-            Carregando seu perfil...
-          </p>
+            <p className="mt-3 text-sm text-muted-foreground">
+              Carregando seu perfil...
+            </p>
+          </div>
         </main>
 
         <SiteFooter />
@@ -128,36 +145,51 @@ function ProfilePage() {
     );
   }
 
-  const initials = (
-    profile?.display_name ??
-    user.displayName ??
-    user.email ??
-    "G"
-  )
+  /*
+   * Supabase usa user.id em vez de user.uid.
+   *
+   * O nome pode existir nos metadados da conta, mas
+   * preferimos usar o perfil salvo no banco.
+   */
+const fallbackName =
+  profile?.["display_name"] ??
+  (typeof user.user_metadata?.["display_name"] === "string"
+    ? user.user_metadata["display_name"]
+    : null) ??
+  user.email ??
+  "G";
+
+  const initials = fallbackName
     .slice(0, 2)
     .toUpperCase();
 
+  /*
+   * Salvar perfil.
+   */
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
 
     setErrors({});
     setStatus(null);
 
-    const nameResult = nameSchema.safeParse(displayName);
-    const avatarResult = avatarSchema.safeParse(
-      avatarUrl.trim(),
-    );
+    const nameResult =
+      nameSchema.safeParse(displayName);
+
+    const avatarResult =
+      avatarSchema.safeParse(avatarUrl.trim());
 
     const next: Record<string, string> = {};
 
     if (!nameResult.success) {
       next["displayName"] =
-        nameResult.error.issues[0]!.message;
+        nameResult.error.issues[0]?.message ??
+        "Nome inválido";
     }
 
     if (!avatarResult.success) {
       next["avatarUrl"] =
-        avatarResult.error.issues[0]!.message;
+        avatarResult.error.issues[0]?.message ??
+        "URL do avatar inválida";
     }
 
     if (Object.keys(next).length > 0) {
@@ -165,39 +197,77 @@ function ProfilePage() {
       return;
     }
 
+    /*
+     * Como o Zod já validou os dados, aqui eles são strings.
+     */
     const nameValue = nameResult.data;
     const avatarValue = avatarResult.data;
-
-    if (nameValue === undefined || avatarValue === undefined) {
-      setStatus({
-        kind: "error",
-        text: "Verifique os dados informados.",
-      });
-      return;
-    }
 
     setSaving(true);
 
     try {
-      await updateProfile(user, {
-        displayName: nameValue,
-        photoURL: avatarValue || null,
-      });
+      /*
+       * Atualiza os metadados do usuário no Supabase Auth.
+       */
+      const { error: authError } =
+        await supabase.auth.updateUser({
+          data: {
+            display_name: nameValue,
+          },
+        });
 
-      await setDoc(
-        doc(db, "profiles", user.uid),
-        {
-          id: user.uid,
-          display_name: nameValue,
-          avatar_url: avatarValue || null,
-          email: user.email ?? null,
-          updated_at: new Date(),
-        },
-        {
-          merge: true,
-        },
-      );
+      if (authError) {
+        console.error(
+          "Erro ao atualizar usuário:",
+          authError,
+        );
 
+        setStatus({
+          kind: "error",
+          text:
+            "Não foi possível atualizar sua conta. Tente novamente.",
+        });
+
+        return;
+      }
+
+      /*
+       * Atualiza o perfil na tabela profiles.
+       *
+       * IMPORTANTE:
+       * Supabase usa user.id.
+       * Firebase usava user.uid.
+       */
+const { error: profileError } =
+  await supabase.from("profiles").upsert(
+    {
+      id: user.id,
+      display_name: nameValue ?? null,
+      avatar_url: avatarValue || null,
+    },
+    {
+      onConflict: "id",
+    },
+  );
+
+      if (profileError) {
+        console.error(
+          "Erro ao atualizar perfil:",
+          profileError,
+        );
+
+        setStatus({
+          kind: "error",
+          text:
+            "Não foi possível salvar o perfil. Tente novamente.",
+        });
+
+        return;
+      }
+
+      /*
+       * Recarrega o perfil pelo AuthContext.
+       */
       await refreshProfile();
 
       setStatus({
@@ -206,19 +276,23 @@ function ProfilePage() {
       });
     } catch (error) {
       console.error(
-        "Erro ao salvar perfil:",
+        "Erro inesperado ao salvar perfil:",
         error,
       );
 
       setStatus({
         kind: "error",
-        text: "Não foi possível salvar. Tente novamente.",
+        text:
+          "Ocorreu um erro ao salvar. Tente novamente.",
       });
     } finally {
       setSaving(false);
     }
   };
 
+  /*
+   * Logout pelo Supabase.
+   */
   const handleSignOut = async () => {
     try {
       await signOut();
@@ -232,6 +306,12 @@ function ProfilePage() {
         "Erro ao sair da conta:",
         error,
       );
+
+      setStatus({
+        kind: "error",
+        text:
+          "Não foi possível sair da conta. Tente novamente.",
+      });
     }
   };
 
@@ -250,13 +330,15 @@ function ProfilePage() {
           / Meu perfil
         </nav>
 
+        {/* CABEÇALHO DO PERFIL */}
         <header className="mt-4 flex flex-col gap-4 rounded-2xl border border-border bg-card p-5 shadow-card sm:flex-row sm:items-center sm:p-6">
           <div className="flex items-center gap-4">
             {profile?.avatar_url ? (
               <img
                 src={profile.avatar_url}
                 alt={`Avatar de ${
-                  profile.display_name ?? "usuário"
+                  profile.display_name ??
+                  "usuário"
                 }`}
                 className="size-16 shrink-0 rounded-xl border border-border object-cover"
               />
@@ -269,12 +351,11 @@ function ProfilePage() {
             <div className="min-w-0">
               <h1 className="truncate font-display text-2xl font-extrabold uppercase sm:text-3xl">
                 {profile?.display_name ??
-                  user.displayName ??
                   "Jogador GameHub"}
               </h1>
 
               <p className="truncate text-sm text-muted-foreground">
-                {user.email}
+                {user.email ?? "Sem e-mail"}
               </p>
             </div>
           </div>
@@ -283,13 +364,16 @@ function ProfilePage() {
             variant="outline"
             className="sm:ml-auto"
             onClick={handleSignOut}
+            disabled={saving}
           >
             <LogOut className="size-4" />
             Sair da conta
           </Button>
         </header>
 
+        {/* CONTEÚDO */}
         <div className="mt-6 grid gap-6 lg:grid-cols-[1.2fr_1fr]">
+          {/* DADOS DO PERFIL */}
           <section className="rounded-2xl border border-border bg-card p-5 shadow-card sm:p-6">
             <h2 className="font-display text-lg font-bold uppercase">
               Dados do perfil
@@ -300,6 +384,7 @@ function ProfilePage() {
               className="mt-4 space-y-4"
               noValidate
             >
+              {/* NOME */}
               <div className="space-y-1.5">
                 <Label htmlFor="displayName">
                   Nome de exibição
@@ -324,6 +409,7 @@ function ProfilePage() {
                 )}
               </div>
 
+              {/* EMAIL */}
               <div className="space-y-1.5">
                 <Label htmlFor="email">
                   E-mail
@@ -337,10 +423,12 @@ function ProfilePage() {
                 />
 
                 <p className="text-xs text-muted-foreground">
-                  O e-mail da conta não pode ser alterado.
+                  O e-mail da conta não pode ser
+                  alterado aqui.
                 </p>
               </div>
 
+              {/* AVATAR */}
               <div className="space-y-1.5">
                 <Label htmlFor="avatarUrl">
                   URL do avatar
@@ -366,6 +454,7 @@ function ProfilePage() {
                 )}
               </div>
 
+              {/* SALVAR */}
               <Button
                 type="submit"
                 variant="hero"
@@ -380,6 +469,7 @@ function ProfilePage() {
                 Salvar alterações
               </Button>
 
+              {/* STATUS */}
               {status && (
                 <p
                   role={
@@ -399,6 +489,7 @@ function ProfilePage() {
             </form>
           </section>
 
+          {/* SIDEBAR */}
           <aside className="space-y-6">
             <PlaceholderCard
               icon={

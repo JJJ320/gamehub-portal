@@ -2,13 +2,6 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Gamepad2, Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { z } from "zod";
-import {
-  createUserWithEmailAndPassword,
-  signInWithEmailAndPassword,
-  signInWithPopup,
-  updateProfile,
-} from "firebase/auth";
-import { doc, setDoc } from "firebase/firestore";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,19 +13,27 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs";
 import { useAuth } from "@/hooks/use-auth";
-import { auth, db, googleProvider } from "@/firebase";
+import { supabase } from "@/integrations/supabase/client";
 
 type AuthSearch = {
-  redirect: string | undefined;
+  redirect?: string;
 };
 
 export const Route = createFileRoute("/auth")({
-  validateSearch: (search: Record<string, unknown>): AuthSearch => ({
-    redirect:
+  ssr: false,
+
+  validateSearch: (
+    search: Record<string, unknown>,
+  ): AuthSearch => {
+    const redirect =
       typeof search["redirect"] === "string"
         ? search["redirect"]
-        : undefined,
-  }),
+        : undefined;
+
+    return redirect !== undefined
+      ? { redirect }
+      : {};
+  },
 
   head: () => ({
     meta: [
@@ -40,7 +41,7 @@ export const Route = createFileRoute("/auth")({
       {
         name: "description",
         content:
-          "Acesse sua conta GameHub para personalizar seu perfil e preparar seus favoritos e histórico de jogos.",
+          "Acesse sua conta GameHub para personalizar seu perfil, favoritos e histórico de jogos.",
       },
       {
         property: "og:title",
@@ -67,23 +68,36 @@ export const Route = createFileRoute("/auth")({
 const emailSchema = z
   .string()
   .trim()
-  .email({ message: "Informe um e-mail válido" })
+  .email({
+    message: "Informe um e-mail válido",
+  })
   .max(255);
 
 const passwordSchema = z
   .string()
-  .min(8, { message: "A senha deve ter pelo menos 8 caracteres" })
-  .max(72, { message: "A senha deve ter no máximo 72 caracteres" });
+  .min(8, {
+    message: "A senha deve ter pelo menos 8 caracteres",
+  })
+  .max(72, {
+    message: "A senha deve ter no máximo 72 caracteres",
+  });
 
 const nameSchema = z
   .string()
   .trim()
-  .min(2, { message: "Informe seu nome (mín. 2 caracteres)" })
-  .max(60, { message: "O nome deve ter no máximo 60 caracteres" });
+  .min(2, {
+    message: "Informe seu nome (mín. 2 caracteres)",
+  })
+  .max(60, {
+    message: "O nome deve ter no máximo 60 caracteres",
+  });
 
 function AuthPage() {
   const navigate = useNavigate();
-  const { redirect } = Route.useSearch();
+  const search = Route.useSearch();
+
+  const redirect = search.redirect;
+
   const { user, loading: sessionLoading } = useAuth();
 
   const target =
@@ -93,22 +107,35 @@ function AuthPage() {
 
   useEffect(() => {
     if (!sessionLoading && user) {
-      navigate({
+      void navigate({
         to: target,
         replace: true,
       });
     }
-  }, [sessionLoading, user, target, navigate]);
+  }, [
+    sessionLoading,
+    user,
+    target,
+    navigate,
+  ]);
 
-  const [tab, setTab] = useState<"login" | "signup">("login");
+  const [tab, setTab] = useState<
+    "login" | "signup"
+  >("login");
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
 
-  const [errors, setErrors] = useState<Record<string, string>>({});
-  const [formError, setFormError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
+  const [errors, setErrors] = useState<
+    Record<string, string>
+  >({});
+
+  const [formError, setFormError] =
+    useState<string | null>(null);
+
+  const [notice, setNotice] =
+    useState<string | null>(null);
 
   const [busy, setBusy] = useState<
     "login" | "signup" | "google" | null
@@ -122,23 +149,35 @@ function AuthPage() {
 
   const switchTab = (value: string) => {
     reset();
-    setTab(value === "signup" ? "signup" : "login");
+
+    setTab(
+      value === "signup"
+        ? "signup"
+        : "login",
+    );
   };
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleLogin = async (
+    e: React.FormEvent<HTMLFormElement>,
+  ) => {
     e.preventDefault();
+
     reset();
 
     const next: Record<string, string> = {};
 
-    const emailResult = emailSchema.safeParse(email);
+    const emailResult =
+      emailSchema.safeParse(email);
 
     if (!emailResult.success) {
-      next["email"] = emailResult.error.issues[0]!.message;
+      next["email"] =
+        emailResult.error.issues[0]?.message ??
+        "Informe um e-mail válido";
     }
 
     if (!password) {
-      next["password"] = "Informe sua senha";
+      next["password"] =
+        "Informe sua senha";
     }
 
     if (Object.keys(next).length > 0) {
@@ -146,74 +185,98 @@ function AuthPage() {
       return;
     }
 
-    const emailValue = emailResult.data;
-
-    if (!emailValue) {
-      setErrors({
-        email: "Informe um e-mail válido",
-      });
+    if (!emailResult.success) {
       return;
     }
+
+    const emailValue = emailResult.data;
 
     setBusy("login");
 
     try {
-      await signInWithEmailAndPassword(
-        auth,
-        emailValue,
-        password,
-      );
+      const { error } =
+        await supabase.auth.signInWithPassword({
+          email: emailValue,
+          password,
+        });
 
-      navigate({
+      if (error) {
+        console.error(
+          "Erro no login:",
+          error,
+        );
+
+        setFormError(
+          getAuthErrorMessage(error.message),
+        );
+
+        return;
+      }
+
+      await navigate({
         to: target,
         replace: true,
       });
     } catch (error) {
-      console.error("Erro no login:", error);
-
-      const code =
-        error &&
-        typeof error === "object" &&
-        "code" in error
-          ? String(error.code)
-          : "";
+      console.error(
+        "Erro inesperado no login:",
+        error,
+      );
 
       setFormError(
-        code === "auth/user-not-found" ||
-        code === "auth/wrong-password" ||
-        code === "auth/invalid-credential"
-          ? "E-mail ou senha incorretos."
-          : "Não foi possível entrar. Tente novamente.",
+        "Não foi possível entrar. Tente novamente.",
       );
     } finally {
       setBusy(null);
     }
   };
 
-  const handleSignup = async (e: React.FormEvent) => {
+  const handleSignup = async (
+    e: React.FormEvent<HTMLFormElement>,
+  ) => {
     e.preventDefault();
+
     reset();
 
     const next: Record<string, string> = {};
 
-    const nameResult = nameSchema.safeParse(name);
-    const emailResult = emailSchema.safeParse(email);
-    const passResult = passwordSchema.safeParse(password);
+    const nameResult =
+      nameSchema.safeParse(name);
+
+    const emailResult =
+      emailSchema.safeParse(email);
+
+    const passResult =
+      passwordSchema.safeParse(password);
 
     if (!nameResult.success) {
-      next["name"] = nameResult.error.issues[0]!.message;
+      next["name"] =
+        nameResult.error.issues[0]?.message ??
+        "Informe seu nome";
     }
 
     if (!emailResult.success) {
-      next["email"] = emailResult.error.issues[0]!.message;
+      next["email"] =
+        emailResult.error.issues[0]?.message ??
+        "Informe um e-mail válido";
     }
 
     if (!passResult.success) {
-      next["password"] = passResult.error.issues[0]!.message;
+      next["password"] =
+        passResult.error.issues[0]?.message ??
+        "Informe uma senha válida";
     }
 
     if (Object.keys(next).length > 0) {
       setErrors(next);
+      return;
+    }
+
+    if (
+      !nameResult.success ||
+      !emailResult.success ||
+      !passResult.success
+    ) {
       return;
     }
 
@@ -221,58 +284,96 @@ function AuthPage() {
     const emailValue = emailResult.data;
     const passwordValue = passResult.data;
 
-    if (!nameValue || !emailValue || !passwordValue) {
-      setFormError("Verifique os dados informados.");
-      return;
-    }
-
     setBusy("signup");
 
     try {
-      const credential = await createUserWithEmailAndPassword(
-        auth,
-        emailValue,
-        passwordValue,
-      );
+      const {
+        data,
+        error,
+      } = await supabase.auth.signUp({
+        email: emailValue,
+        password: passwordValue,
 
-      await updateProfile(credential.user, {
-        displayName: nameValue,
+        options: {
+          data: {
+            display_name: nameValue,
+          },
+        },
       });
 
-      await setDoc(
-        doc(db, "profiles", credential.user.uid),
-        {
-          id: credential.user.uid,
-          display_name: nameValue,
-          avatar_url: credential.user.photoURL ?? null,
-        },
-        {
-          merge: true,
-        },
-      );
+      if (error) {
+        console.error(
+          "Erro ao criar conta:",
+          error,
+        );
 
-      navigate({
+        setFormError(
+          getAuthErrorMessage(error.message),
+        );
+
+        return;
+      }
+
+      if (!data.user) {
+        setFormError(
+          "Não foi possível criar sua conta. Tente novamente.",
+        );
+
+        return;
+      }
+
+      /*
+       * O Supabase pode exigir confirmação
+       * de e-mail antes de criar uma sessão.
+       */
+      if (!data.session) {
+        setNotice(
+          "Conta criada! Verifique seu e-mail para confirmar a conta antes de entrar.",
+        );
+
+        setTab("login");
+        setPassword("");
+
+        return;
+      }
+
+      /*
+       * Caso a confirmação de e-mail esteja
+       * desativada, criamos o perfil imediatamente.
+       */
+      const { error: profileError } =
+        await supabase
+          .from("profiles")
+          .upsert(
+            {
+              id: data.user.id,
+              display_name: nameValue,
+              avatar_url: null,
+            },
+            {
+              onConflict: "id",
+            },
+          );
+
+      if (profileError) {
+        console.error(
+          "Erro ao criar perfil:",
+          profileError,
+        );
+      }
+
+      await navigate({
         to: target,
         replace: true,
       });
     } catch (error) {
-      console.error("Erro ao criar conta:", error);
-
-      const code =
-        error &&
-        typeof error === "object" &&
-        "code" in error
-          ? String(error.code)
-          : "";
+      console.error(
+        "Erro inesperado ao criar conta:",
+        error,
+      );
 
       setFormError(
-        code === "auth/email-already-in-use"
-          ? "Este e-mail já possui uma conta. Faça login."
-          : code === "auth/weak-password"
-            ? "Esta senha é muito fraca. Escolha uma senha mais forte."
-            : code === "auth/invalid-email"
-              ? "Informe um e-mail válido."
-              : "Não foi possível criar sua conta. Tente novamente.",
+        "Não foi possível criar sua conta. Tente novamente.",
       );
     } finally {
       setBusy(null);
@@ -281,37 +382,44 @@ function AuthPage() {
 
   const handleGoogle = async () => {
     reset();
+
     setBusy("google");
 
     try {
-      const result = await signInWithPopup(
-        auth,
-        googleProvider,
-      );
+      const redirectTo =
+        `${window.location.origin}${target}`;
 
-      await setDoc(
-        doc(db, "profiles", result.user.uid),
-        {
-          id: result.user.uid,
-          display_name: result.user.displayName ?? null,
-          avatar_url: result.user.photoURL ?? null,
-        },
-        {
-          merge: true,
-        },
-      );
+      const { error } =
+        await supabase.auth.signInWithOAuth({
+          provider: "google",
 
-      navigate({
-        to: target,
-        replace: true,
-      });
+          options: {
+            redirectTo,
+          },
+        });
+
+      if (error) {
+        console.error(
+          "Erro no Google Login:",
+          error,
+        );
+
+        setFormError(
+          "Não foi possível entrar com o Google. Tente novamente.",
+        );
+
+        setBusy(null);
+      }
     } catch (error) {
-      console.error("Erro no Google Login:", error);
+      console.error(
+        "Erro inesperado no Google Login:",
+        error,
+      );
 
       setFormError(
         "Não foi possível entrar com o Google. Tente novamente.",
       );
-    } finally {
+
       setBusy(null);
     }
   };
@@ -379,7 +487,12 @@ function AuthPage() {
                   type="email"
                   value={email}
                   onChange={setEmail}
-                  error={errors["email"]}
+                  {...(errors["email"]
+                    ? {
+                        error:
+                          errors["email"],
+                      }
+                    : {})}
                   autoComplete="email"
                 />
 
@@ -389,7 +502,12 @@ function AuthPage() {
                   type="password"
                   value={password}
                   onChange={setPassword}
-                  error={errors["password"]}
+                  {...(errors["password"]
+                    ? {
+                        error:
+                          errors["password"],
+                      }
+                    : {})}
                   autoComplete="current-password"
                 />
 
@@ -402,6 +520,7 @@ function AuthPage() {
                   {busy === "login" && (
                     <Loader2 className="size-4 animate-spin" />
                   )}
+
                   Entrar
                 </Button>
               </form>
@@ -421,7 +540,12 @@ function AuthPage() {
                   label="Nome"
                   value={name}
                   onChange={setName}
-                  error={errors["name"]}
+                  {...(errors["name"]
+                    ? {
+                        error:
+                          errors["name"],
+                      }
+                    : {})}
                   autoComplete="name"
                 />
 
@@ -431,7 +555,12 @@ function AuthPage() {
                   type="email"
                   value={email}
                   onChange={setEmail}
-                  error={errors["email"]}
+                  {...(errors["email"]
+                    ? {
+                        error:
+                          errors["email"],
+                      }
+                    : {})}
                   autoComplete="email"
                 />
 
@@ -441,7 +570,12 @@ function AuthPage() {
                   type="password"
                   value={password}
                   onChange={setPassword}
-                  error={errors["password"]}
+                  {...(errors["password"]
+                    ? {
+                        error:
+                          errors["password"],
+                      }
+                    : {})}
                   hint="Mínimo de 8 caracteres."
                   autoComplete="new-password"
                 />
@@ -455,6 +589,7 @@ function AuthPage() {
                   {busy === "signup" && (
                     <Loader2 className="size-4 animate-spin" />
                   )}
+
                   Criar conta
                 </Button>
               </form>
@@ -527,21 +662,25 @@ function Field({
   label: string;
   value: string;
   onChange: (value: string) => void;
-  error?: string | undefined;
-  hint?: string | undefined;
-  type?: string | undefined;
-  autoComplete?: string | undefined;
+  error?: string;
+  hint?: string;
+  type?: string;
+  autoComplete?: string;
 }) {
   return (
     <div className="space-y-1.5">
-      <Label htmlFor={id}>{label}</Label>
+      <Label htmlFor={id}>
+        {label}
+      </Label>
 
       <Input
         id={id}
         type={type}
         value={value}
         autoComplete={autoComplete}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={(e) =>
+          onChange(e.target.value)
+        }
         aria-invalid={Boolean(error)}
         className="bg-surface"
       />
@@ -557,4 +696,68 @@ function Field({
       ) : null}
     </div>
   );
+}
+
+function getAuthErrorMessage(
+  message: string,
+): string {
+  const normalized =
+    message.toLowerCase();
+
+  if (
+    normalized.includes(
+      "invalid login credentials",
+    ) ||
+    normalized.includes(
+      "invalid credentials",
+    )
+  ) {
+    return "E-mail ou senha incorretos.";
+  }
+
+  if (
+    normalized.includes(
+      "email not confirmed",
+    ) ||
+    normalized.includes(
+      "email_not_confirmed",
+    )
+  ) {
+    return "Confirme seu e-mail antes de entrar.";
+  }
+
+  if (
+    normalized.includes(
+      "user already registered",
+    ) ||
+    normalized.includes(
+      "already registered",
+    )
+  ) {
+    return "Este e-mail já possui uma conta. Faça login.";
+  }
+
+  if (
+    normalized.includes("password") &&
+    normalized.includes("weak")
+  ) {
+    return "Esta senha é muito fraca. Escolha uma senha mais forte.";
+  }
+
+  if (
+    normalized.includes("invalid email")
+  ) {
+    return "Informe um e-mail válido.";
+  }
+
+  if (
+    normalized.includes("rate limit") ||
+    normalized.includes(
+      "too many requests",
+    )
+  ) {
+    return "Muitas tentativas. Aguarde um pouco e tente novamente.";
+  }
+
+  return "Não foi possível concluir a autenticação. Tente novamente.";
 }
