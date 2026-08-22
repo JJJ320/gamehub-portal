@@ -1,8 +1,17 @@
 import { Link, useNavigate } from "@tanstack/react-router";
-import { Gamepad2, Menu, Search, User, X } from "lucide-react";
+import { Gamepad2, LogOut, Menu, Search, User, UserCircle2, X } from "lucide-react";
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
 
 const navItems = [
