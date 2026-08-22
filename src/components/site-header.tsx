@@ -27,10 +27,25 @@ export function SiteHeader() {
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
 
+  const { user, profile, loading, signOut } = useAuth();
+
+  const displayName =
+    profile?.display_name ??
+    (user?.user_metadata?.["display_name"] as string | undefined) ??
+    user?.email?.split("@")[0] ??
+    "Jogador";
+  const initials = displayName.slice(0, 2).toUpperCase();
+
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     setOpen(false);
     navigate({ to: "/jogos", search: { q: query.trim() || undefined, cat: undefined } });
+  };
+
+  const handleSignOut = async () => {
+    setOpen(false);
+    await signOut();
+    navigate({ to: "/", replace: true });
   };
 
   return (
