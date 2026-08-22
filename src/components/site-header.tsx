@@ -87,9 +87,52 @@ export function SiteHeader() {
               />
             </div>
           </form>
-          <Button variant="hero" size="sm" className="hidden sm:inline-flex">
-            <User className="size-4" /> Entrar
-          </Button>
+          {loading ? (
+            <div className="hidden h-9 w-24 animate-pulse rounded-lg bg-secondary sm:block" />
+          ) : user ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  aria-label="Abrir menu da conta"
+                  className="hidden items-center gap-2 rounded-lg border border-border bg-surface px-2 py-1.5 text-sm font-medium transition-colors hover:bg-secondary sm:flex"
+                >
+                  {profile?.avatar_url ? (
+                    <img
+                      src={profile.avatar_url}
+                      alt={`Avatar de ${displayName}`}
+                      className="size-7 rounded-full object-cover"
+                    />
+                  ) : (
+                    <span className="grid size-7 place-items-center rounded-full bg-gradient-violet text-[11px] font-bold text-primary-foreground">
+                      {initials}
+                    </span>
+                  )}
+                  <span className="max-w-24 truncate">{displayName}</span>
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuLabel className="truncate font-normal text-muted-foreground">
+                  {user.email}
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem asChild>
+                  <Link to="/perfil" className="flex items-center gap-2">
+                    <UserCircle2 className="size-4" /> Meu perfil
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => void handleSignOut()}>
+                  <LogOut className="size-4" /> Sair
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : (
+            <Button variant="hero" size="sm" className="hidden sm:inline-flex" asChild>
+              <Link to="/auth" search={{ redirect: undefined }}>
+                <User className="size-4" /> Entrar
+              </Link>
+            </Button>
+          )}
           <button
             type="button"
             aria-label="Abrir menu"
