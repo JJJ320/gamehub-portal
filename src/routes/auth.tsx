@@ -295,6 +295,12 @@ function AuthPage() {
         password: passwordValue,
 
         options: {
+          // Depois que o usuário clicar no
+          // e-mail de confirmação, o Supabase
+          // vai enviá-lo para esta rota.
+          emailRedirectTo:
+            `${window.location.origin}/auth/callback`,
+
           data: {
             display_name: nameValue,
           },
@@ -323,12 +329,17 @@ function AuthPage() {
       }
 
       /*
-       * O Supabase pode exigir confirmação
-       * de e-mail antes de criar uma sessão.
+       * Quando a confirmação de e-mail está ativada,
+       * o Supabase normalmente retorna:
+       *
+       * data.session === null
+       *
+       * Nesse caso, mostramos a mensagem para o usuário
+       * e esperamos ele clicar no link.
        */
       if (!data.session) {
         setNotice(
-          "Conta criada! Verifique seu e-mail para confirmar a conta antes de entrar.",
+          "Conta criada! Enviamos um link para seu e-mail. Clique nele para confirmar sua conta e entrar automaticamente.",
         );
 
         setTab("login");
@@ -338,16 +349,25 @@ function AuthPage() {
       }
 
       /*
-       * Caso a confirmação de e-mail esteja
-       * desativada, criamos o perfil imediatamente.
+       * Caso a confirmação de e-mail esteja desativada,
+       * já temos uma sessão e podemos criar/atualizar
+       * o perfil imediatamente.
        */
+      const displayName =
+        data.user.user_metadata?.[
+          "display_name"
+        ];
+
       const { error: profileError } =
         await supabase
           .from("profiles")
           .upsert(
             {
               id: data.user.id,
-              display_name: nameValue,
+              display_name:
+                typeof displayName === "string"
+                  ? displayName
+                  : nameValue,
               avatar_url: null,
             },
             {
@@ -380,39 +400,26 @@ function AuthPage() {
     }
   };
 
-  const handleGoogle = async () => {
-    reset();
+ const handleGoogle = async () => {
+  reset();
 
-    setBusy("google");
+  setBusy("google");
 
-    try {
-      const redirectTo =
-        `${window.location.origin}${target}`;
+  try {
+    const redirectTo =
+      `${window.location.origin}/auth/callback`;
 
-      const { error } =
-        await supabase.auth.signInWithOAuth({
-          provider: "google",
+    const { error } =
+      await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo,
+        },
+      });
 
-          options: {
-            redirectTo,
-          },
-        });
-
-      if (error) {
-        console.error(
-          "Erro no Google Login:",
-          error,
-        );
-
-        setFormError(
-          "Não foi possível entrar com o Google. Tente novamente.",
-        );
-
-        setBusy(null);
-      }
-    } catch (error) {
+    if (error) {
       console.error(
-        "Erro inesperado no Google Login:",
+        "Erro no Google Login:",
         error,
       );
 
@@ -422,7 +429,19 @@ function AuthPage() {
 
       setBusy(null);
     }
-  };
+  } catch (error) {
+    console.error(
+      "Erro inesperado no Google Login:",
+      error,
+    );
+
+    setFormError(
+      "Não foi possível entrar com o Google. Tente novamente.",
+    );
+
+    setBusy(null);
+  }
+};
 
   return (
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden px-4 py-12">
