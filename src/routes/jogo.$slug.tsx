@@ -1,10 +1,13 @@
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
-import { CalendarDays, Info, Lock, Play, Star, Tag, Users } from "lucide-react";
+import { useState } from "react";
+import { CalendarDays, Gamepad2, Info, Lock, Play, Star, Tag, Users } from "lucide-react";
 
 import { GameCard } from "@/components/game-card";
+import { GamePlayer } from "@/components/game-player";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { Button } from "@/components/ui/button";
+import { getPlayableGame } from "@/games/registry";
 import {
   categories,
   formatPlays,
