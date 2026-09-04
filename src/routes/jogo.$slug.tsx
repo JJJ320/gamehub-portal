@@ -165,6 +165,36 @@ function GameDetail() {
             </div>
           </div>
 
+          {game.playable && PlayableGame && (
+            <section id="area-de-jogo" className="mt-10">
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                <h2 className="flex items-center gap-2 font-display text-xl font-extrabold uppercase">
+                  <Gamepad2 className="size-5 text-primary" /> Jogar no GameHub
+                </h2>
+                <Button variant="outlineGlow" asChild>
+                  <Link to="/jogos" search={{ q: undefined, cat: undefined }}>
+                    Voltar ao catálogo
+                  </Link>
+                </Button>
+              </div>
+              {playing ? (
+                <GamePlayer>
+                  <PlayableGame />
+                </GamePlayer>
+              ) : (
+                <div className="grid place-items-center rounded-2xl border border-border/70 bg-surface/60 p-10 text-center">
+                  <p className="text-sm text-muted-foreground">
+                    Clique em JOGAR AGORA para iniciar. Toque, clique ou pressione Espaço para voar.
+                  </p>
+                  <Button variant="hero" size="xl" className="mt-4" onClick={() => setPlaying(true)}>
+                    <Play className="fill-current" /> Iniciar partida
+                  </Button>
+                </div>
+              )}
+            </section>
+          )}
+
+
           {related.length > 0 && (
             <section className="mt-12">
               <h2 className="mb-4 font-display text-xl font-extrabold uppercase">
