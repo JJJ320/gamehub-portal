@@ -122,8 +122,17 @@ function GameDetail() {
               </p>
 
               <div className="mt-6 flex flex-wrap items-center gap-3">
-                {game.playable ? (
-                  <Button variant="hero" size="xl">
+                {game.playable && PlayableGame ? (
+                  <Button
+                    variant="hero"
+                    size="xl"
+                    onClick={() => {
+                      setPlaying(true);
+                      document
+                        .getElementById("area-de-jogo")
+                        ?.scrollIntoView({ behavior: "smooth", block: "center" });
+                    }}
+                  >
                     <Play className="fill-current" /> JOGAR AGORA
                   </Button>
                 ) : (
