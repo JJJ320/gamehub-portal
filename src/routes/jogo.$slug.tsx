@@ -61,6 +61,8 @@ function GameNotFound() {
 
 function GameDetail() {
   const { game } = Route.useLoaderData();
+  const PlayableGame = getPlayableGame(game.slug);
+  const [playing, setPlaying] = useState(false);
   const related = games
     .filter((g) => g.id !== game.id && g.categories.some((c) => game.categories.includes(c)))
     .slice(0, 6);
