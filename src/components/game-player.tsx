@@ -9,6 +9,11 @@ import { Loader2, Maximize2, Minimize2 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
+/**
+ * Moldura padrão para jogos HTML5 internos do GameHub.
+ * Mantém proporção grande, bordas do design system e evita scroll acidental.
+ */
+
 type GamePlayerProps = {
   children: ReactNode;
   className?: string;
@@ -58,17 +63,18 @@ export function GamePlayer({
     <div
       ref={wrapperRef}
       className={cn(
-        "relative w-full overflow-hidden rounded-2xl border border-border/70 bg-black shadow-card",
+        "relative w-full overflow-hidden rounded-2xl border border-border/70 bg-surface shadow-card",
         isFullscreen
           ? "flex h-[100dvh] w-screen items-center justify-center rounded-none border-0"
-          : "aspect-[2/3]",
+          : "aspect-[4/5] sm:aspect-[16/10] lg:aspect-[16/9]",
+
         className,
       )}
       style={{ touchAction: "none" }}
     >
       <div
         className={cn(
-          "relative aspect-[2/3] overflow-hidden bg-black",
+          "relative overflow-hidden bg-black",
           isFullscreen
             ? "h-full max-h-full w-auto max-w-full"
             : "size-full",
@@ -109,3 +115,4 @@ export function GamePlayer({
     </div>
   );
 }
+

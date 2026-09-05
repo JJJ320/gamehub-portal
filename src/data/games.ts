@@ -21,6 +21,7 @@ import coverMaze from "@/assets/cover-maze.jpg";
 import coverCrew from "@/assets/cover-crew.jpg";
 import coverSandbox from "@/assets/cover-sandbox.jpg";
 import coverRhythm from "@/assets/cover-rhythm.jpg";
+import coverFlappy from "@/assets/cover-flappy-pombo.jpg";
 
 export type CategorySlug =
   | "acao"
@@ -73,6 +74,29 @@ export const categories: Category[] = [
 ];
 
 export const games: Game[] = [
+  {
+    id: "g-flappy-pombo",
+    slug: "flappy-pombo",
+    title: "Flappy Pombo",
+    genre: "Arcade / Habilidade",
+    categories: ["acao", "puzzle"],
+    rating: 4.9,
+    plays: 128_000,
+    cover: coverFlappy,
+    hero: coverFlappy,
+    shortDescription:
+      "Guie um pombo urbano entre canos de metal industriais. Jogue agora, direto no navegador.",
+    description:
+      "Jogo original do GameHub feito em HTML5: um pombo da cidade voa entre canos de metal enquanto você controla cada batida de asa. Física simples, dificuldade que cresce a cada ponto e recorde salvo no seu navegador. Funciona no computador e no celular, sem instalar nada.",
+    developer: "GameHub Originals",
+    releaseYear: 2026,
+    platforms: ["Web", "Android", "iOS"],
+    tags: ["Arcade", "Original", "Jogável"],
+    playable: true,
+    embedUrl: "/jogo/flappy-pombo",
+    featured: true,
+    isNew: true,
+  },
   {
     id: "g-granny",
     slug: "granny",

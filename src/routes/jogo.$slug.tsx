@@ -1,6 +1,6 @@
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { CalendarDays, Info, Lock, Play, Star, Tag, Users } from "lucide-react";
+import { CalendarDays, Gamepad2, Info, Lock, Play, Star, Tag, Users } from "lucide-react";
 
 import { GameCard } from "@/components/game-card";
 import { GamePlayer } from "@/components/game-player";
@@ -76,17 +76,17 @@ function GameDetail() {
   const { game } = Route.useLoaderData();
   const PlayableGame = getPlayableGame(game.slug);
   const [playing, setPlaying] = useState(false);
-
   useEffect(() => {
     if (!playing) return;
 
     requestAnimationFrame(() => {
       document.getElementById("area-de-jogo")?.scrollIntoView({
         behavior: "smooth",
-        block: "start",
+        block: "center",
       });
     });
   }, [playing]);
+
 
   const related = games
     .filter(
@@ -233,18 +233,16 @@ function GameDetail() {
           </div>
 
           {game.playable && PlayableGame && (
-            <section
-              id="area-de-jogo"
-              className="mt-10 scroll-mt-20"
-            >
-              <div className="mb-4">
-                <h2 className="font-display text-2xl font-extrabold uppercase">
-                  Área de jogo
+            <section id="area-de-jogo" className="mt-10 scroll-mt-20">
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                <h2 className="flex items-center gap-2 font-display text-xl font-extrabold uppercase">
+                  <Gamepad2 className="size-5 text-primary" /> Jogar no GameHub
                 </h2>
-
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Toque, clique ou pressione Espaço para jogar.
-                </p>
+                <Button variant="outlineGlow" asChild>
+                  <Link to="/jogos" search={{ q: undefined, cat: undefined }}>
+                    Voltar ao catálogo
+                  </Link>
+                </Button>
               </div>
 
               {playing ? (
@@ -254,7 +252,7 @@ function GameDetail() {
               ) : (
                 <div className="grid place-items-center rounded-2xl border border-border/70 bg-surface/60 p-10 text-center">
                   <p className="text-sm text-muted-foreground">
-                    Clique em JOGAR AGORA para iniciar.
+                    Clique em JOGAR AGORA para iniciar. Toque, clique ou pressione Espaço para jogar.
                   </p>
 
                   <Button
