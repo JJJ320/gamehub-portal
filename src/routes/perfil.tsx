@@ -285,9 +285,10 @@ function ProfilePage() {
             </div>
           </div>
 
+          <Button variant="outline" asChild className="sm:ml-auto"><Link to="/admin/jogos">Gerenciar jogos</Link></Button>
+
           <Button
             variant="outline"
-            className="sm:ml-auto"
             onClick={handleSignOut}
             disabled={saving}
           >
