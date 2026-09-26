@@ -6,14 +6,17 @@ import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/hooks/use-auth";
-import { supabase } from "@/integrations/supabase/client";
+import {
+  createUserWithEmailAndPassword,
+  sendEmailVerification,
+  signInWithEmailAndPassword,
+  signInWithPopup,
+  updateProfile,
+} from "firebase/auth";
+import { doc, serverTimestamp, setDoc } from "firebase/firestore";
+import { auth, db, googleProvider } from "@/firebase";
 
 type AuthSearch = {
   redirect?: string;
@@ -22,17 +25,10 @@ type AuthSearch = {
 export const Route = createFileRoute("/auth")({
   ssr: false,
 
-  validateSearch: (
-    search: Record<string, unknown>,
-  ): AuthSearch => {
-    const redirect =
-      typeof search["redirect"] === "string"
-        ? search["redirect"]
-        : undefined;
+  validateSearch: (search: Record<string, unknown>): AuthSearch => {
+    const redirect = typeof search["redirect"] === "string" ? search["redirect"] : undefined;
 
-    return redirect !== undefined
-      ? { redirect }
-      : {};
+    return redirect !== undefined ? { redirect } : {};
   },
 
   head: () => ({
@@ -100,10 +96,7 @@ function AuthPage() {
 
   const { user, loading: sessionLoading } = useAuth();
 
-  const target =
-    redirect && redirect.startsWith("/")
-      ? redirect
-      : "/perfil";
+  const target = redirect && redirect.startsWith("/") ? redirect : "/perfil";
 
   useEffect(() => {
     if (!sessionLoading && user) {
@@ -112,34 +105,21 @@ function AuthPage() {
         replace: true,
       });
     }
-  }, [
-    sessionLoading,
-    user,
-    target,
-    navigate,
-  ]);
+  }, [sessionLoading, user, target, navigate]);
 
-  const [tab, setTab] = useState<
-    "login" | "signup"
-  >("login");
+  const [tab, setTab] = useState<"login" | "signup">("login");
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
 
-  const [errors, setErrors] = useState<
-    Record<string, string>
-  >({});
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
-  const [formError, setFormError] =
-    useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
 
-  const [notice, setNotice] =
-    useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
-  const [busy, setBusy] = useState<
-    "login" | "signup" | "google" | null
-  >(null);
+  const [busy, setBusy] = useState<"login" | "signup" | "google" | null>(null);
 
   const reset = () => {
     setErrors({});
@@ -150,34 +130,24 @@ function AuthPage() {
   const switchTab = (value: string) => {
     reset();
 
-    setTab(
-      value === "signup"
-        ? "signup"
-        : "login",
-    );
+    setTab(value === "signup" ? "signup" : "login");
   };
 
-  const handleLogin = async (
-    e: React.FormEvent<HTMLFormElement>,
-  ) => {
+  const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
     reset();
 
     const next: Record<string, string> = {};
 
-    const emailResult =
-      emailSchema.safeParse(email);
+    const emailResult = emailSchema.safeParse(email);
 
     if (!emailResult.success) {
-      next["email"] =
-        emailResult.error.issues[0]?.message ??
-        "Informe um e-mail válido";
+      next["email"] = emailResult.error.issues[0]?.message ?? "Informe um e-mail válido";
     }
 
     if (!password) {
-      next["password"] =
-        "Informe sua senha";
+      next["password"] = "Informe sua senha";
     }
 
     if (Object.keys(next).length > 0) {
@@ -194,77 +164,44 @@ function AuthPage() {
     setBusy("login");
 
     try {
-      const { error } =
-        await supabase.auth.signInWithPassword({
-          email: emailValue,
-          password,
-        });
-
-      if (error) {
-        console.error(
-          "Erro no login:",
-          error,
-        );
-
-        setFormError(
-          getAuthErrorMessage(error.message),
-        );
-
-        return;
-      }
+      await signInWithEmailAndPassword(auth, emailValue, password);
 
       await navigate({
         to: target,
         replace: true,
       });
     } catch (error) {
-      console.error(
-        "Erro inesperado no login:",
-        error,
-      );
+      console.error("Erro inesperado no login:", error);
 
-      setFormError(
-        "Não foi possível entrar. Tente novamente.",
-      );
+      setFormError("Não foi possível entrar. Tente novamente.");
     } finally {
       setBusy(null);
     }
   };
 
-  const handleSignup = async (
-    e: React.FormEvent<HTMLFormElement>,
-  ) => {
+  const handleSignup = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
     reset();
 
     const next: Record<string, string> = {};
 
-    const nameResult =
-      nameSchema.safeParse(name);
+    const nameResult = nameSchema.safeParse(name);
 
-    const emailResult =
-      emailSchema.safeParse(email);
+    const emailResult = emailSchema.safeParse(email);
 
-    const passResult =
-      passwordSchema.safeParse(password);
+    const passResult = passwordSchema.safeParse(password);
 
     if (!nameResult.success) {
-      next["name"] =
-        nameResult.error.issues[0]?.message ??
-        "Informe seu nome";
+      next["name"] = nameResult.error.issues[0]?.message ?? "Informe seu nome";
     }
 
     if (!emailResult.success) {
-      next["email"] =
-        emailResult.error.issues[0]?.message ??
-        "Informe um e-mail válido";
+      next["email"] = emailResult.error.issues[0]?.message ?? "Informe um e-mail válido";
     }
 
     if (!passResult.success) {
-      next["password"] =
-        passResult.error.issues[0]?.message ??
-        "Informe uma senha válida";
+      next["password"] = passResult.error.issues[0]?.message ?? "Informe uma senha válida";
     }
 
     if (Object.keys(next).length > 0) {
@@ -272,11 +209,7 @@ function AuthPage() {
       return;
     }
 
-    if (
-      !nameResult.success ||
-      !emailResult.success ||
-      !passResult.success
-    ) {
+    if (!nameResult.success || !emailResult.success || !passResult.success) {
       return;
     }
 
@@ -287,219 +220,109 @@ function AuthPage() {
     setBusy("signup");
 
     try {
-      const {
-        data,
-        error,
-      } = await supabase.auth.signUp({
-        email: emailValue,
-        password: passwordValue,
+      const credential = await createUserWithEmailAndPassword(auth, emailValue, passwordValue);
 
-        options: {
-          // Depois que o usuário clicar no
-          // e-mail de confirmação, o Supabase
-          // vai enviá-lo para esta rota.
-          emailRedirectTo:
-            `${window.location.origin}/auth/callback`,
-
-          data: {
-            display_name: nameValue,
-          },
-        },
+      await updateProfile(credential.user, {
+        displayName: nameValue,
       });
 
-      if (error) {
-        console.error(
-          "Erro ao criar conta:",
-          error,
-        );
+      await setDoc(
+        doc(db, "profiles", credential.user.uid),
+        {
+          id: credential.user.uid,
+          display_name: nameValue,
+          avatar_url: credential.user.photoURL ?? null,
+          created_at: serverTimestamp(),
+          updated_at: serverTimestamp(),
+        },
+        { merge: true },
+      );
 
-        setFormError(
-          getAuthErrorMessage(error.message),
-        );
+      await sendEmailVerification(credential.user, {
+        url: `${window.location.origin}/auth/callback`,
+        handleCodeInApp: true,
+      });
+      await auth.signOut();
 
-        return;
-      }
+      setNotice(
+        "Conta criada! Enviamos um link para seu e-mail. Clique nele para confirmar sua conta e depois entre normalmente.",
+      );
 
-      if (!data.user) {
-        setFormError(
-          "Não foi possível criar sua conta. Tente novamente.",
-        );
+      setTab("login");
+      setPassword("");
+    } catch (error) {
+      console.error("Erro inesperado ao criar conta:", error);
 
-        return;
-      }
+      setFormError("Não foi possível criar sua conta. Tente novamente.");
+    } finally {
+      setBusy(null);
+    }
+  };
 
-      /*
-       * Quando a confirmação de e-mail está ativada,
-       * o Supabase normalmente retorna:
-       *
-       * data.session === null
-       *
-       * Nesse caso, mostramos a mensagem para o usuário
-       * e esperamos ele clicar no link.
-       */
-      if (!data.session) {
-        setNotice(
-          "Conta criada! Enviamos um link para seu e-mail. Clique nele para confirmar sua conta e entrar automaticamente.",
-        );
+  const handleGoogle = async () => {
+    reset();
 
-        setTab("login");
-        setPassword("");
+    setBusy("google");
 
-        return;
-      }
+    try {
+      const credential = await signInWithPopup(auth, googleProvider);
 
-      /*
-       * Caso a confirmação de e-mail esteja desativada,
-       * já temos uma sessão e podemos criar/atualizar
-       * o perfil imediatamente.
-       */
-      const displayName =
-        data.user.user_metadata?.[
-          "display_name"
-        ];
-
-      const { error: profileError } =
-        await supabase
-          .from("profiles")
-          .upsert(
-            {
-              id: data.user.id,
-              display_name:
-                typeof displayName === "string"
-                  ? displayName
-                  : nameValue,
-              avatar_url: null,
-            },
-            {
-              onConflict: "id",
-            },
-          );
-
-      if (profileError) {
-        console.error(
-          "Erro ao criar perfil:",
-          profileError,
-        );
-      }
+      await setDoc(
+        doc(db, "profiles", credential.user.uid),
+        {
+          id: credential.user.uid,
+          display_name: credential.user.displayName ?? null,
+          avatar_url: credential.user.photoURL ?? null,
+          updated_at: serverTimestamp(),
+        },
+        { merge: true },
+      );
 
       await navigate({
         to: target,
         replace: true,
       });
     } catch (error) {
-      console.error(
-        "Erro inesperado ao criar conta:",
-        error,
-      );
+      console.error("Erro inesperado no Google Login:", error);
 
-      setFormError(
-        "Não foi possível criar sua conta. Tente novamente.",
-      );
-    } finally {
+      setFormError("Não foi possível entrar com o Google. Tente novamente.");
+
       setBusy(null);
     }
   };
 
- const handleGoogle = async () => {
-  reset();
-
-  setBusy("google");
-
-  try {
-    const redirectTo =
-      `${window.location.origin}/auth/callback`;
-
-    const { error } =
-      await supabase.auth.signInWithOAuth({
-        provider: "google",
-        options: {
-          redirectTo,
-        },
-      });
-
-    if (error) {
-      console.error(
-        "Erro no Google Login:",
-        error,
-      );
-
-      setFormError(
-        "Não foi possível entrar com o Google. Tente novamente.",
-      );
-
-      setBusy(null);
-    }
-  } catch (error) {
-    console.error(
-      "Erro inesperado no Google Login:",
-      error,
-    );
-
-    setFormError(
-      "Não foi possível entrar com o Google. Tente novamente.",
-    );
-
-    setBusy(null);
-  }
-};
-
   return (
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden px-4 py-12">
-      <div
-        className="grid-glow pointer-events-none absolute inset-0"
-        aria-hidden
-      />
+      <div className="grid-glow pointer-events-none absolute inset-0" aria-hidden />
 
       <div className="relative w-full max-w-md">
-        <Link
-          to="/"
-          className="mb-6 flex items-center justify-center gap-2"
-        >
+        <Link to="/" className="mb-6 flex items-center justify-center gap-2">
           <span className="grid size-9 place-items-center rounded-lg bg-gradient-violet shadow-glow">
             <Gamepad2 className="size-5 text-primary-foreground" />
           </span>
 
           <span className="font-display text-xl font-extrabold tracking-tight">
             GAME
-            <span className="text-gradient-violet">
-              HUB
-            </span>
+            <span className="text-gradient-violet">HUB</span>
           </span>
         </Link>
 
         <div className="rounded-2xl border border-border bg-card p-6 shadow-card sm:p-8">
-          <h1 className="font-display text-2xl font-extrabold uppercase">
-            Sua conta GameHub
-          </h1>
+          <h1 className="font-display text-2xl font-extrabold uppercase">Sua conta GameHub</h1>
 
           <p className="mt-1 text-sm text-muted-foreground">
             Entre ou cadastre-se para personalizar seu perfil.
           </p>
 
-          <Tabs
-            value={tab}
-            onValueChange={switchTab}
-            className="mt-6"
-          >
+          <Tabs value={tab} onValueChange={switchTab} className="mt-6">
             <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="login">
-                Entrar
-              </TabsTrigger>
+              <TabsTrigger value="login">Entrar</TabsTrigger>
 
-              <TabsTrigger value="signup">
-                Criar conta
-              </TabsTrigger>
+              <TabsTrigger value="signup">Criar conta</TabsTrigger>
             </TabsList>
 
-            <TabsContent
-              value="login"
-              className="mt-5"
-            >
-              <form
-                onSubmit={handleLogin}
-                className="space-y-4"
-                noValidate
-              >
+            <TabsContent value="login" className="mt-5">
+              <form onSubmit={handleLogin} className="space-y-4" noValidate>
                 <Field
                   id="login-email"
                   label="E-mail"
@@ -508,8 +331,7 @@ function AuthPage() {
                   onChange={setEmail}
                   {...(errors["email"]
                     ? {
-                        error:
-                          errors["email"],
+                        error: errors["email"],
                       }
                     : {})}
                   autoComplete="email"
@@ -523,37 +345,21 @@ function AuthPage() {
                   onChange={setPassword}
                   {...(errors["password"]
                     ? {
-                        error:
-                          errors["password"],
+                        error: errors["password"],
                       }
                     : {})}
                   autoComplete="current-password"
                 />
 
-                <Button
-                  type="submit"
-                  variant="hero"
-                  className="w-full"
-                  disabled={busy !== null}
-                >
-                  {busy === "login" && (
-                    <Loader2 className="size-4 animate-spin" />
-                  )}
-
+                <Button type="submit" variant="hero" className="w-full" disabled={busy !== null}>
+                  {busy === "login" && <Loader2 className="size-4 animate-spin" />}
                   Entrar
                 </Button>
               </form>
             </TabsContent>
 
-            <TabsContent
-              value="signup"
-              className="mt-5"
-            >
-              <form
-                onSubmit={handleSignup}
-                className="space-y-4"
-                noValidate
-              >
+            <TabsContent value="signup" className="mt-5">
+              <form onSubmit={handleSignup} className="space-y-4" noValidate>
                 <Field
                   id="signup-name"
                   label="Nome"
@@ -561,8 +367,7 @@ function AuthPage() {
                   onChange={setName}
                   {...(errors["name"]
                     ? {
-                        error:
-                          errors["name"],
+                        error: errors["name"],
                       }
                     : {})}
                   autoComplete="name"
@@ -576,8 +381,7 @@ function AuthPage() {
                   onChange={setEmail}
                   {...(errors["email"]
                     ? {
-                        error:
-                          errors["email"],
+                        error: errors["email"],
                       }
                     : {})}
                   autoComplete="email"
@@ -591,24 +395,15 @@ function AuthPage() {
                   onChange={setPassword}
                   {...(errors["password"]
                     ? {
-                        error:
-                          errors["password"],
+                        error: errors["password"],
                       }
                     : {})}
                   hint="Mínimo de 8 caracteres."
                   autoComplete="new-password"
                 />
 
-                <Button
-                  type="submit"
-                  variant="hero"
-                  className="w-full"
-                  disabled={busy !== null}
-                >
-                  {busy === "signup" && (
-                    <Loader2 className="size-4 animate-spin" />
-                  )}
-
+                <Button type="submit" variant="hero" className="w-full" disabled={busy !== null}>
+                  {busy === "signup" && <Loader2 className="size-4 animate-spin" />}
                   Criar conta
                 </Button>
               </form>
@@ -646,18 +441,12 @@ function AuthPage() {
             onClick={handleGoogle}
             disabled={busy !== null}
           >
-            {busy === "google" && (
-              <Loader2 className="size-4 animate-spin" />
-            )}
-
+            {busy === "google" && <Loader2 className="size-4 animate-spin" />}
             Continuar com Google
           </Button>
 
           <p className="mt-6 text-center text-xs text-muted-foreground">
-            <Link
-              to="/"
-              className="hover:text-primary"
-            >
+            <Link to="/" className="hover:text-primary">
               Voltar para o catálogo
             </Link>
           </p>
@@ -688,94 +477,79 @@ function Field({
 }) {
   return (
     <div className="space-y-1.5">
-      <Label htmlFor={id}>
-        {label}
-      </Label>
+      <Label htmlFor={id}>{label}</Label>
 
       <Input
         id={id}
         type={type}
         value={value}
         autoComplete={autoComplete}
-        onChange={(e) =>
-          onChange(e.target.value)
-        }
+        onChange={(e) => onChange(e.target.value)}
         aria-invalid={Boolean(error)}
         className="bg-surface"
       />
 
       {error ? (
-        <p className="text-xs text-destructive">
-          {error}
-        </p>
+        <p className="text-xs text-destructive">{error}</p>
       ) : hint ? (
-        <p className="text-xs text-muted-foreground">
-          {hint}
-        </p>
+        <p className="text-xs text-muted-foreground">{hint}</p>
       ) : null}
     </div>
   );
 }
 
-function getAuthErrorMessage(
-  message: string,
-): string {
-  const normalized =
-    message.toLowerCase();
+function getAuthErrorMessage(error: unknown): string {
+  const code =
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    typeof (error as { code?: unknown }).code === "string"
+      ? (error as { code: string }).code
+      : "";
+
+  const message = error instanceof Error ? error.message : String(error);
+
+  const normalized = message.toLowerCase();
 
   if (
-    normalized.includes(
-      "invalid login credentials",
-    ) ||
-    normalized.includes(
-      "invalid credentials",
-    )
+    code === "auth/invalid-credential" ||
+    code === "auth/wrong-password" ||
+    code === "auth/user-not-found" ||
+    normalized.includes("invalid login credentials") ||
+    normalized.includes("invalid credentials")
   ) {
     return "E-mail ou senha incorretos.";
   }
 
   if (
-    normalized.includes(
-      "email not confirmed",
-    ) ||
-    normalized.includes(
-      "email_not_confirmed",
-    )
-  ) {
-    return "Confirme seu e-mail antes de entrar.";
-  }
-
-  if (
-    normalized.includes(
-      "user already registered",
-    ) ||
-    normalized.includes(
-      "already registered",
-    )
+    code === "auth/email-already-in-use" ||
+    normalized.includes("already registered") ||
+    normalized.includes("already in use")
   ) {
     return "Este e-mail já possui uma conta. Faça login.";
   }
 
   if (
-    normalized.includes("password") &&
-    normalized.includes("weak")
+    code === "auth/weak-password" ||
+    (normalized.includes("password") && normalized.includes("weak"))
   ) {
     return "Esta senha é muito fraca. Escolha uma senha mais forte.";
   }
 
-  if (
-    normalized.includes("invalid email")
-  ) {
+  if (code === "auth/invalid-email" || normalized.includes("invalid email")) {
     return "Informe um e-mail válido.";
   }
 
   if (
+    code === "auth/too-many-requests" ||
     normalized.includes("rate limit") ||
-    normalized.includes(
-      "too many requests",
-    )
+    normalized.includes("too many requests")
   ) {
     return "Muitas tentativas. Aguarde um pouco e tente novamente.";
+  }
+
+  if (code === "auth/popup-closed-by-user") {
+    return "A janela do Google foi fechada antes de concluir o login.";
   }
 
   return "Não foi possível concluir a autenticação. Tente novamente.";

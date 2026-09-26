@@ -1,0 +1,45 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Cada usuário só pode acessar e editar o próprio perfil.
+    match /profiles/{userId} {
+      allow read, write: if request.auth != null
+        && request.auth.uid == userId;
+    }
+
+    // Catálogo público de jogos.
+    // A escrita fica reservada ao usuário cujo UID estiver
+    // cadastrado na coleção privada /owners.
+    match /games/{gameId} {
+      allow read: if resource.data.published == true
+        || (
+          request.auth != null
+          && exists(/databases/$(database)/documents/owners/$(request.auth.uid))
+        );
+
+      allow create, update, delete: if request.auth != null
+        && exists(/databases/$(database)/documents/owners/$(request.auth.uid));
+    }
+
+    // Favoritos: cada usuário só pode acessar seus próprios registros.
+    match /favorites/{favoriteId} {
+      allow read, delete: if request.auth != null
+        && resource.data.user_id == request.auth.uid;
+
+      allow create: if request.auth != null
+        && request.resource.data.user_id == request.auth.uid;
+
+      allow update: if request.auth != null
+        && resource.data.user_id == request.auth.uid
+        && request.resource.data.user_id == request.auth.uid;
+    }
+
+    // A coleção owners deve ser criada/gerenciada pelo console
+    // ou por código administrativo confiável. Nenhum cliente
+    // consegue conceder a si mesmo permissão de dono.
+    match /owners/{userId} {
+      allow read, write: if false;
+    }
+  }
+}
