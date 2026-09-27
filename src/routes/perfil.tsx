@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/hooks/use-auth";
+import { useGames } from "@/hooks/use-games";
+import { listUserGameData, type UserGameData } from "@/lib/user-game-data";
 import { updateProfile } from "firebase/auth";
 import { doc, serverTimestamp, setDoc } from "firebase/firestore";
 import { db } from "@/firebase";
@@ -71,6 +73,8 @@ function ProfilePage() {
   const navigate = useNavigate();
 
   const { user, profile, loading, updateProfileLocal, signOut } = useAuth();
+  const games = useGames();
+  const [userGames, setUserGames] = useState<UserGameData[]>([]);
 
   const [displayName, setDisplayName] = useState("");
   const [avatarUrl, setAvatarUrl] = useState("");
@@ -84,6 +88,13 @@ function ProfilePage() {
   } | null>(null);
 
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!user) return;
+    void listUserGameData(user.uid)
+      .then(setUserGames)
+      .catch((error) => console.error("Falha ao carregar atividade dos jogos:", error));
+  }, [user]);
 
   /*
    * Redireciona usuários não autenticados.
@@ -226,7 +237,7 @@ function ProfilePage() {
        */
       setAvatarUrl(avatarValue);
       setAvatarFile(null);
-      await refreshProfile();
+      updateProfileLocal({ display_name: nameValue, avatar_url: avatarValue || null });
 
       setStatus({
         kind: "ok",
@@ -413,16 +424,19 @@ function ProfilePage() {
 
           {/* SIDEBAR */}
           <aside className="space-y-6">
-            <PlaceholderCard
-              icon={<Heart className="size-5 text-primary" />}
+            <UserGamesCard
               title="Favoritos"
-              text="Em breve você poderá salvar seus jogos preferidos aqui e acessá-los com um clique."
+              icon={<Heart className="size-5 text-primary" />}
+              items={userGames.filter((item) => item.favorite)}
+              games={games}
+              emptyText="Você ainda não favoritou nenhum jogo."
             />
-
-            <PlaceholderCard
-              icon={<Clock className="size-5 text-primary" />}
+            <UserGamesCard
               title="Histórico"
-              text="Esta área guardará os últimos jogos que você abriu no GameHub."
+              icon={<Clock className="size-5 text-primary" />}
+              items={[...userGames].filter((item) => item.lastPlayedAt).sort((a, b) => (b.lastPlayedAt ?? "").localeCompare(a.lastPlayedAt ?? "")).slice(0, 6)}
+              games={games}
+              emptyText="Seu histórico aparecerá aqui quando você jogar."
             />
           </aside>
         </div>
@@ -433,28 +447,54 @@ function ProfilePage() {
   );
 }
 
-function PlaceholderCard({
+function UserGamesCard({
   icon,
   title,
-  text,
+  items,
+  games,
+  emptyText,
 }: {
   icon: React.ReactNode;
   title: string;
-  text: string;
+  items: UserGameData[];
+  games: ReturnType<typeof useGames>;
+  emptyText: string;
 }) {
   return (
-    <section className="rounded-2xl border border-dashed border-border bg-surface/60 p-5 transition-colors hover:border-primary/50">
+    <section className="rounded-2xl border border-border bg-card p-5 shadow-card">
       <div className="flex items-center gap-2">
         {icon}
-
         <h2 className="font-display text-base font-bold uppercase">{title}</h2>
       </div>
 
-      <p className="mt-2 text-sm text-muted-foreground">{text}</p>
-
-      <span className="mt-3 inline-block rounded-md border border-border px-2 py-1 text-[11px] uppercase tracking-wide text-muted-foreground">
-        Em breve
-      </span>
+      {items.length === 0 ? (
+        <p className="mt-3 text-sm text-muted-foreground">{emptyText}</p>
+      ) : (
+        <div className="mt-4 space-y-3">
+          {items.map((item) => {
+            const game = games.find((candidate) => candidate.slug === item.gameSlug);
+            if (!game) return null;
+            const minutes = Math.floor(item.playTimeSeconds / 60);
+            return (
+              <Link
+                key={item.gameSlug}
+                to="/jogo/$slug"
+                params={{ slug: game.slug }}
+                className="flex items-center gap-3 rounded-xl border border-border/70 bg-surface/60 p-2.5 transition-colors hover:border-primary/50"
+              >
+                <img src={game.cover} alt="" className="size-12 rounded-lg object-cover" />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-bold">{game.title}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {minutes > 0 ? `${minutes} min de jogo` : "Ainda sem tempo registrado"}
+                    {item.rating ? ` · ${item.rating}/5` : ""}
+                  </p>
+                </div>
+              </Link>
+            );
+          })}
+        </div>
+      )}
     </section>
   );
 }

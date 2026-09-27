@@ -35,6 +35,12 @@ service cloud.firestore {
         && request.resource.data.user_id == request.auth.uid;
     }
 
+    // Dados pessoais de uso dos jogos: favoritos, histórico, tempo e avaliação.
+    match /userGames/{userId}/games/{gameId} {
+      allow read, write: if request.auth != null
+        && request.auth.uid == userId;
+    }
+
     // A coleção owners deve ser criada/gerenciada pelo console
     // ou por código administrativo confiável. Nenhum cliente
     // consegue conceder a si mesmo permissão de dono.

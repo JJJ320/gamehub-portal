@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { CalendarDays, Gamepad2, Info, Lock, Play, Star, Tag, Users } from "lucide-react";
-import { useEffect, useState } from "react";
+import { CalendarDays, Gamepad2, Heart, Info, Lock, Play, Star, Tag, Users } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { GameCard } from "@/components/game-card";
 import { GamePlayer } from "@/components/game-player";
 import { SiteFooter } from "@/components/site-footer";
@@ -9,14 +9,21 @@ import { Button } from "@/components/ui/button";
 import { categories, formatPlays } from "@/data/games";
 import { getPlayableGame } from "@/games/registry";
 import { useGames } from "@/hooks/use-games";
+import { useAuth } from "@/hooks/use-auth";
+import { getUserGameData, recordGamePlay, setGameFavorite, setGameRating, type UserGameData } from "@/lib/user-game-data";
 
 export const Route = createFileRoute("/jogo/$slug")({ ssr: false, component: GameDetailPage });
 
 function GameDetailPage() {
   const { slug } = Route.useParams();
   const games = useGames();
+  const { user } = useAuth();
   const game = games.find((g) => g.slug === slug);
   const [playing, setPlaying] = useState(false);
+  const [gameData, setGameData] = useState<UserGameData>({ gameSlug: slug, favorite: false, playTimeSeconds: 0 });
+  const [rating, setRating] = useState(0);
+  const [savingGameData, setSavingGameData] = useState(false);
+  const playStartedAt = useRef<number | null>(null);
   const PlayableGame = game ? getPlayableGame(game.slug) : undefined;
 
   useEffect(() => {
@@ -24,6 +31,64 @@ function GameDetailPage() {
       document.getElementById("area-de-jogo")?.scrollIntoView({ behavior: "smooth", block: "center" });
     }
   }, [playing]);
+
+  useEffect(() => {
+    if (!user || !game) return;
+    void getUserGameData(user.uid, game.slug)
+      .then((data) => {
+        setGameData(data);
+        setRating(data.rating ?? 0);
+      })
+      .catch((error) => console.error("Falha ao carregar dados do jogo:", error));
+  }, [user, game?.slug]);
+
+  useEffect(() => {
+    if (!playing || !user || !game) return;
+    playStartedAt.current = Date.now();
+
+    return () => {
+      const started = playStartedAt.current;
+      playStartedAt.current = null;
+      if (!started) return;
+      const seconds = Math.floor((Date.now() - started) / 1000);
+      if (seconds > 0) {
+        void recordGamePlay(user.uid, game.slug, seconds).catch((error) =>
+          console.error("Falha ao registrar tempo de jogo:", error),
+        );
+      }
+    };
+  }, [playing, user, game?.slug]);
+
+  const toggleFavorite = async () => {
+    if (!user || !game || savingGameData) return;
+    const next = !gameData.favorite;
+    setGameData((current) => ({ ...current, favorite: next }));
+    setSavingGameData(true);
+    try {
+      await setGameFavorite(user.uid, game.slug, next);
+    } catch (error) {
+      setGameData((current) => ({ ...current, favorite: !next }));
+      console.error("Falha ao salvar favorito:", error);
+    } finally {
+      setSavingGameData(false);
+    }
+  };
+
+  const rateGame = async (value: number) => {
+    if (!user || !game || savingGameData) return;
+    setRating(value);
+    setGameData((current) => ({ ...current, rating: value }));
+    setSavingGameData(true);
+    try {
+      await setGameRating(user.uid, game.slug, value);
+    } catch (error) {
+      setRating(gameData.rating ?? 0);
+      setGameData((current) => ({ ...current, rating: gameData.rating }));
+      console.error("Falha ao salvar avaliação:", error);
+    } finally {
+      setSavingGameData(false);
+    }
+  };
 
   if (!game) {
     return <div className="min-h-screen"><SiteHeader /><main className="mx-auto max-w-3xl px-4 py-24 text-center"><h1 className="font-display text-3xl font-extrabold">Jogo não encontrado</h1><Button className="mt-6" asChild><Link to="/jogos" search={{ q: undefined, cat: undefined }}>Ver jogos</Link></Button></main><SiteFooter /></div>;
@@ -62,7 +127,42 @@ function GameDetailPage() {
               <div className="mt-6 flex flex-wrap gap-3">
                 {canPlay ? <Button variant="hero" size="xl" onClick={() => setPlaying(true)}><Play className="fill-current" /> JOGAR AGORA</Button> : <Button size="xl" disabled><Lock /> JOGAR AGORA</Button>}
                 <Button variant="outlineGlow" size="xl" asChild><Link to="/jogos" search={{ cat: game.categories[0], q: undefined }}>Ver similares</Link></Button>
+                {user && (
+                  <Button
+                    variant="outline"
+                    size="xl"
+                    onClick={toggleFavorite}
+                    disabled={savingGameData}
+                    aria-pressed={gameData.favorite}
+                  >
+                    <Heart className={gameData.favorite ? "fill-current text-primary" : ""} />
+                    {gameData.favorite ? "FAVORITO" : "FAVORITAR"}
+                  </Button>
+                )}
               </div>
+
+              {user && (
+                <div className="mt-5 rounded-xl border border-border/70 bg-surface/60 p-4">
+                  <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Sua avaliação</p>
+                  <div className="mt-2 flex items-center gap-1">
+                    {[1, 2, 3, 4, 5].map((value) => (
+                      <button
+                        key={value}
+                        type="button"
+                        onClick={() => void rateGame(value)}
+                        disabled={savingGameData}
+                        className="rounded-md p-1 text-gold transition-transform hover:scale-110 disabled:opacity-50"
+                        aria-label={`Avaliar com ${value} estrela${value > 1 ? "s" : ""}`}
+                      >
+                        <Star className={value <= rating ? "size-6 fill-current" : "size-6"} />
+                      </button>
+                    ))}
+                    <span className="ml-2 text-sm text-muted-foreground">
+                      {rating ? `${rating}/5` : "Ainda não avaliado"}
+                    </span>
+                  </div>
+                </div>
+              )}
 
               {!canPlay && <div className="mt-4 flex gap-3 rounded-xl border border-border/70 bg-surface/60 p-4"><Info className="size-4 shrink-0 text-primary" /><p className="text-xs text-muted-foreground">Este jogo ainda não possui uma versão jogável configurada.</p></div>}
 
