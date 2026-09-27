@@ -73,7 +73,7 @@ async function buildZipHtml(url: string): Promise<string> {
 
   html = html.replace(
     /(<(?:script|img|audio|video|source|iframe|embed|object)[^>]+(?:src|data)=["'])([^"']+)(["'])/gi,
-    (_match, prefix, reference, suffix) => ${prefix}${rewrite(reference)}${suffix},
+    (_match, prefix, reference, suffix) => `${prefix}${rewrite(reference)}${suffix}`,
   );
   html = html.replace(
     /(<link[^>]+href=["'])([^"']+)(["'])/gi,
