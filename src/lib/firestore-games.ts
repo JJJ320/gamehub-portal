@@ -1,5 +1,5 @@
 import { collection, deleteDoc, doc, getDocs, query, serverTimestamp, setDoc, where } from "firebase/firestore";
-import { db } from "@/firebase";
+import { auth, db } from "@/firebase";
 import type { Game } from "@/data/games";
 
 export type GameType = "internal" | "url" | "html" | "zip";
@@ -42,29 +42,90 @@ export async function deleteGame(slug: string): Promise<void> {
   await deleteDoc(doc(db, "games", slug));
 }
 
+async function uploadGameFile(slug: string, file: File): Promise<string> {
+  const maxBytes = 100 * 1024 * 1024;
+
+  if (file.size > maxBytes) {
+    throw new Error("Arquivo muito grande. O limite atual do GameHub é 100 MB.");
+  }
+
+  const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
+  const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
+
+  if (!cloudName || !uploadPreset) {
+    throw new Error("Configure VITE_CLOUDINARY_CLOUD_NAME e VITE_CLOUDINARY_UPLOAD_PRESET.");
+  }
+
+  const body = new FormData();
+  body.append("file", file);
+  body.append("upload_preset", uploadPreset);
+  body.append("folder", `gamehub/games/${slug}`);
+  body.append("public_id", file.name);
+
+  const response = await fetch(
+    `https://api.cloudinary.com/v1_1/${cloudName}/raw/upload`,
+    {
+      method: "POST",
+      body,
+    },
+  );
+
+  const result = await response.json();
+
+  if (!response.ok || !result.secure_url) {
+    throw new Error(result.error?.message ?? "Falha no upload do jogo para o Cloudinary.");
+  }
+
+  return result.secure_url as string;
+}
+
+async function uploadImageAsset(
+  slug: string,
+  kind: "cover" | "hero",
+  file: File,
+): Promise<string> {
+  const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
+  const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
+
+  if (!cloudName || !uploadPreset) {
+    throw new Error("Configure VITE_CLOUDINARY_CLOUD_NAME e VITE_CLOUDINARY_UPLOAD_PRESET.");
+  }
+
+  const body = new FormData();
+  body.append("file", file);
+  body.append("upload_preset", uploadPreset);
+  body.append("folder", `gamehub/games/${slug}`);
+  body.append("public_id", kind);
+
+  const response = await fetch(
+    `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`,
+    {
+      method: "POST",
+      body,
+    },
+  );
+
+  const result = await response.json();
+
+  if (!response.ok || !result.secure_url) {
+    throw new Error(result.error?.message ?? "Falha no upload para o Cloudinary.");
+  }
+
+  return result.secure_url as string;
+}
+
 export async function uploadGameAsset(
   slug: string,
   kind: "cover" | "hero" | "game",
   file: File,
 ): Promise<string> {
-  const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
-  const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
-  if (!cloudName || !uploadPreset) {
-    throw new Error("Configure VITE_CLOUDINARY_CLOUD_NAME e VITE_CLOUDINARY_UPLOAD_PRESET.");
+  if (!auth.currentUser) {
+    throw new Error("Faça login antes de enviar o jogo.");
   }
 
-  const resourceType = kind === "game" ? "raw" : "image";
-  const endpoint = `https://api.cloudinary.com/v1_1/${cloudName}/${resourceType}/upload`;
-  const body = new FormData();
-  body.append("file", file);
-  body.append("upload_preset", uploadPreset);
-  body.append("folder", `gamehub/games/${slug}`);
-  body.append("public_id", kind === "game" ? file.name.replace(/\\.[^/.]+$/, "") || "game" : kind);
-
-  const response = await fetch(endpoint, { method: "POST", body });
-  const result = await response.json();
-  if (!response.ok || !result.secure_url) {
-    throw new Error(result.error?.message ?? "Falha no upload para o Cloudinary.");
+  if (kind === "game") {
+    return uploadGameFile(slug, file);
   }
-  return result.secure_url as string;
+
+  return uploadImageAsset(slug, kind, file);
 }
