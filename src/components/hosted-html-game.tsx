@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+﻿import { useEffect, useMemo, useState } from "react";
 import JSZip from "jszip";
 
 type HostedHtmlGameProps = {
@@ -54,7 +54,7 @@ async function buildZipHtml(url: string): Promise<string> {
     htmlCandidates.find((path) => path.toLowerCase().endsWith("/game.html")) ??
     htmlCandidates[0];
 
-  if (!entry) throw new Error("O ZIP não contém nenhum arquivo HTML.");
+  if (!entry) throw new Error("O ZIP nÃ£o contÃ©m nenhum arquivo HTML.");
 
   const blobUrls = new Map<string, string>();
   for (const [path, file] of fileMap) {
@@ -63,7 +63,7 @@ async function buildZipHtml(url: string): Promise<string> {
   }
 
   const htmlFile = fileMap.get(entry);
-  if (!htmlFile) throw new Error("Arquivo HTML principal não encontrado.");
+  if (!htmlFile) throw new Error("Arquivo HTML principal nÃ£o encontrado.");
   let html = await htmlFile.async("string");
 
   const rewrite = (reference: string) => {
@@ -77,7 +77,7 @@ async function buildZipHtml(url: string): Promise<string> {
   );
   html = html.replace(
     /(<link[^>]+href=["'])([^"']+)(["'])/gi,
-    (_match, prefix, reference, suffix) => ${prefix}${rewrite(reference)}${suffix},
+    (_match, prefix, reference, suffix) => `${prefix}${rewrite(reference)}${suffix}`,
   );
   html = html.replace(
     /(<[^>]+style=["'][^"']*)(["'])/gi,
@@ -118,7 +118,7 @@ export function HostedHtmlGame({ url, type, title }: HostedHtmlGameProps) {
         }
         if (!cancelled) setSrcDoc(html);
       } catch (loadError) {
-        if (!cancelled) setError(loadError instanceof Error ? loadError.message : "Não foi possível carregar o jogo.");
+        if (!cancelled) setError(loadError instanceof Error ? loadError.message : "NÃ£o foi possÃ­vel carregar o jogo.");
       }
     };
 
@@ -126,12 +126,12 @@ export function HostedHtmlGame({ url, type, title }: HostedHtmlGameProps) {
     return () => { cancelled = true; };
   }, [url, type]);
 
-  const frameTitle = useMemo(() => `${title} — GameHub`, [title]);
+  const frameTitle = useMemo(() => `${title} â€” GameHub`, [title]);
 
   if (error) {
     return (
       <div className="grid size-full place-items-center p-6 text-center text-sm text-muted-foreground">
-        <div><p className="font-semibold text-foreground">Não foi possível carregar o jogo.</p><p className="mt-2">{error}</p></div>
+        <div><p className="font-semibold text-foreground">NÃ£o foi possÃ­vel carregar o jogo.</p><p className="mt-2">{error}</p></div>
       </div>
     );
   }
