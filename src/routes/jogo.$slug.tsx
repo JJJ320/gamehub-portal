@@ -44,14 +44,14 @@ function GameDetailPage() {
   const [gameData, setGameData] = useState<UserGameData>({
     gameSlug: slug,
     favorite: false,
-    playTimeSeconds: 0,
+    playTimeMs: 0,
   });
   const [rating, setRating] = useState(0);
   const [savingFavorite, setSavingFavorite] = useState(false);
   const [savingRating, setSavingRating] = useState(false);
 
-  const playStartedAt = useRef<number | null>(null);
   const lastPlaySyncAt = useRef<number | null>(null);
+  const [liveNow, setLiveNow] = useState(Date.now());
   const gameDataRequestVersion = useRef(0);
 
   const PlayableGame = game ? getPlayableGame(game.slug) : undefined;
@@ -86,31 +86,32 @@ function GameDetailPage() {
     if (!playing || !user || !game) return;
 
     const now = Date.now();
-    playStartedAt.current = now;
     lastPlaySyncAt.current = now;
+    setLiveNow(now);
 
-    // Cria/atualiza o registro imediatamente para o histórico,
-    // sem precisar esperar o usuário sair da página.
     void recordGamePlay(user.uid, game.slug, 0).catch((error) =>
       console.error("Falha ao registrar início da partida:", error),
     );
+
+    const displayInterval = window.setInterval(() => {
+      setLiveNow(Date.now());
+    }, 50);
 
     const syncPlayTime = () => {
       const lastSync = lastPlaySyncAt.current;
       if (!lastSync) return;
 
       const current = Date.now();
-      const seconds = Math.floor((current - lastSync) / 1000);
+      const milliseconds = current - lastSync;
+      if (milliseconds <= 0) return;
 
-      if (seconds <= 0) return;
+      lastPlaySyncAt.current = current;
 
-      lastPlaySyncAt.current = lastSync + seconds * 1000;
-
-      void recordGamePlay(user.uid, game.slug, seconds)
+      void recordGamePlay(user.uid, game.slug, milliseconds)
         .then(() => {
           setGameData((currentData) => ({
             ...currentData,
-            playTimeSeconds: currentData.playTimeSeconds + seconds,
+            playTimeMs: currentData.playTimeMs + milliseconds,
             lastPlayedAt: new Date().toISOString(),
           }));
         })
@@ -119,20 +120,20 @@ function GameDetailPage() {
         );
     };
 
-    const interval = window.setInterval(syncPlayTime, 10000);
+    const persistenceInterval = window.setInterval(syncPlayTime, 1000);
 
     return () => {
-      window.clearInterval(interval);
+      window.clearInterval(displayInterval);
+      window.clearInterval(persistenceInterval);
 
       const lastSync = lastPlaySyncAt.current;
       if (!lastSync) return;
 
-      const seconds = Math.floor((Date.now() - lastSync) / 1000);
+      const milliseconds = Date.now() - lastSync;
       lastPlaySyncAt.current = null;
-      playStartedAt.current = null;
 
-      if (seconds > 0) {
-        void recordGamePlay(user.uid, game.slug, seconds).catch((error) =>
+      if (milliseconds > 0) {
+        void recordGamePlay(user.uid, game.slug, milliseconds).catch((error) =>
           console.error("Falha ao registrar tempo de jogo:", error),
         );
       }
@@ -182,6 +183,11 @@ function GameDetailPage() {
       setSavingRating(false);
     }
   };
+
+  const livePlayTimeMs =
+    playing && lastPlaySyncAt.current
+      ? gameData.playTimeMs + (liveNow - lastPlaySyncAt.current)
+      : gameData.playTimeMs;
 
   if (!game) {
     return (
@@ -384,7 +390,13 @@ function GameDetailPage() {
               </h2>
 
               {playing ? (
-                <GamePlayer>
+                <>
+                  <div className="mb-3 flex justify-end">
+                    <span className="rounded-lg border border-border/70 bg-surface/80 px-3 py-1.5 font-mono text-sm tabular-nums text-muted-foreground">
+                      Tempo: {formatPlayTime(livePlayTimeMs)}
+                    </span>
+                  </div>
+                  <GamePlayer>
                   {PlayableGame ? (
                     <PlayableGame />
                   ) : (
@@ -432,6 +444,19 @@ function GameDetailPage() {
       <SiteFooter />
     </div>
   );
+}
+
+function formatPlayTime(milliseconds: number): string {
+  const safeMs = Math.max(0, Math.floor(milliseconds));
+  const hours = Math.floor(safeMs / 3_600_000);
+  const minutes = Math.floor((safeMs % 3_600_000) / 60_000);
+  const seconds = Math.floor((safeMs % 60_000) / 1_000);
+  const ms = safeMs % 1_000;
+
+  if (hours > 0) {
+    return `${hours}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}.${String(ms).padStart(3, "0")}`;
+  }
+  return `${minutes}:${String(seconds).padStart(2, "0")}.${String(ms).padStart(3, "0")}`;
 }
 
 function Stat({

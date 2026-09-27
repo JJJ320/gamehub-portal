@@ -474,7 +474,7 @@ function UserGamesCard({
           {items.map((item) => {
             const game = games.find((candidate) => candidate.slug === item.gameSlug);
             if (!game) return null;
-            const minutes = Math.floor(item.playTimeSeconds / 60);
+            const playTime = formatPlayTime(item.playTimeMs);
             return (
               <Link
                 key={item.gameSlug}
@@ -486,7 +486,7 @@ function UserGamesCard({
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-bold">{game.title}</p>
                   <p className="text-xs text-muted-foreground">
-                    {minutes > 0 ? `${minutes} min de jogo` : "Ainda sem tempo registrado"}
+                    {item.playTimeMs > 0 ? `${playTime} de jogo` : "Ainda sem tempo registrado"}
                     {item.rating ? ` · ${item.rating}/5` : ""}
                   </p>
                 </div>
@@ -497,4 +497,17 @@ function UserGamesCard({
       )}
     </section>
   );
+}
+
+function formatPlayTime(milliseconds: number): string {
+  const safeMs = Math.max(0, Math.floor(milliseconds));
+  const hours = Math.floor(safeMs / 3_600_000);
+  const minutes = Math.floor((safeMs % 3_600_000) / 60_000);
+  const seconds = Math.floor((safeMs % 60_000) / 1_000);
+  const ms = safeMs % 1_000;
+
+  if (hours > 0) {
+    return `${hours}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}.${String(ms).padStart(3, "0")}`;
+  }
+  return `${minutes}:${String(seconds).padStart(2, "0")}.${String(ms).padStart(3, "0")}`;
 }

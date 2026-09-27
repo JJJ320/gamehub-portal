@@ -13,7 +13,7 @@ import { db } from "@/firebase";
 export type UserGameData = {
   gameSlug: string;
   favorite: boolean;
-  playTimeSeconds: number;
+  playTimeMs: number;
   lastPlayedAt?: string;
   rating?: number;
 };
@@ -36,16 +36,21 @@ export async function getUserGameData(
   const snapshot = await getDoc(gameRef(userId, slug));
 
   if (!snapshot.exists()) {
-    return { gameSlug: slug, favorite: false, playTimeSeconds: 0 };
+    return { gameSlug: slug, favorite: false, playTimeMs: 0 };
   }
 
   const data = snapshot.data();
+  const playTimeMs =
+    typeof data.playTimeMs === "number"
+      ? Math.max(0, data.playTimeMs)
+      : typeof data.playTimeSeconds === "number"
+        ? Math.max(0, data.playTimeSeconds * 1000)
+        : 0;
 
   return {
     gameSlug: slug,
     favorite: data.favorite === true,
-    playTimeSeconds:
-      typeof data.playTimeSeconds === "number" ? data.playTimeSeconds : 0,
+    playTimeMs,
     lastPlayedAt: timestampToIso(data.lastPlayedAt),
     rating: typeof data.rating === "number" ? data.rating : undefined,
   };
@@ -70,9 +75,9 @@ export async function setGameFavorite(
 export async function recordGamePlay(
   userId: string,
   slug: string,
-  additionalSeconds: number,
+  additionalMs: number,
 ): Promise<void> {
-  const seconds = Math.max(0, Math.round(additionalSeconds));
+  const milliseconds = Math.max(0, Math.round(additionalMs));
 
   // increment() evita perda de tempo quando duas atualizações acontecem
   // quase ao mesmo tempo e também permite criar o registro do histórico
@@ -81,7 +86,7 @@ export async function recordGamePlay(
     gameRef(userId, slug),
     {
       gameSlug: slug,
-      playTimeSeconds: increment(seconds),
+      playTimeMs: increment(milliseconds),
       lastPlayedAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     },
@@ -120,8 +125,12 @@ export async function listUserGameData(
     return {
       gameSlug: item.id,
       favorite: data.favorite === true,
-      playTimeSeconds:
-        typeof data.playTimeSeconds === "number" ? data.playTimeSeconds : 0,
+      playTimeMs:
+        typeof data.playTimeMs === "number"
+          ? Math.max(0, data.playTimeMs)
+          : typeof data.playTimeSeconds === "number"
+            ? Math.max(0, data.playTimeSeconds * 1000)
+            : 0,
       lastPlayedAt: timestampToIso(data.lastPlayedAt),
       rating: typeof data.rating === "number" ? data.rating : undefined,
     };
