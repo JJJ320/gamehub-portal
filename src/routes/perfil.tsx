@@ -74,6 +74,7 @@ function ProfilePage() {
 
   const [displayName, setDisplayName] = useState("");
   const [avatarUrl, setAvatarUrl] = useState("");
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
 
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -155,7 +156,7 @@ function ProfilePage() {
 
     const nameResult = nameSchema.safeParse(displayName);
 
-    const avatarResult = avatarSchema.safeParse(avatarUrl.trim());
+    const avatarResult = avatarFile ? { success: true as const, data: avatarUrl.trim() } : avatarSchema.safeParse(avatarUrl.trim());
 
     const next: Record<string, string> = {};
 
@@ -176,7 +177,7 @@ function ProfilePage() {
      * Como o Zod já validou os dados, aqui eles são strings.
      */
     const nameValue = nameResult.data;
-    const avatarValue = avatarResult.data;
+    let avatarValue = avatarResult.data;
 
     setSaving(true);
 
@@ -184,6 +185,19 @@ function ProfilePage() {
       /*
        * Atualiza os metadados do usuário no Firebase Auth.
        */
+      if (avatarFile) {
+        const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
+        const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
+        if (!cloudName || !uploadPreset) throw new Error("O upload de imagens não está configurado.");
+        const body = new FormData();
+        body.append("file", avatarFile);
+        body.append("upload_preset", uploadPreset);
+        body.append("folder", "gamehub/avatars");
+        const response = await fetch("https://api.cloudinary.com/v1_1/" + cloudName + "/image/upload", { method: "POST", body });
+        const result = await response.json();
+        if (!response.ok || !result.secure_url) throw new Error(result.error?.message ?? "Falha no upload da foto.");
+        avatarValue = result.secure_url as string;
+      }
       await updateProfile(user, {
         displayName: nameValue,
         photoURL: avatarValue || null,
@@ -210,6 +224,8 @@ function ProfilePage() {
       /*
        * Recarrega o perfil pelo AuthContext.
        */
+      setAvatarUrl(avatarValue);
+      setAvatarFile(null);
       await refreshProfile();
 
       setStatus({
@@ -334,22 +350,45 @@ function ProfilePage() {
 
               {/* AVATAR */}
               <div className="space-y-1.5">
-                <Label htmlFor="avatarUrl">URL do avatar</Label>
-
+                <Label htmlFor="avatarFile">Foto de perfil</Label>
+                <Input
+                  id="avatarFile"
+                  type="file"
+                  accept="image/*"
+                  className="bg-surface"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0] ?? null;
+                    if (file && file.size > 5 * 1024 * 1024) {
+                      setErrors((prev) => ({ ...prev, avatarUrl: "A imagem deve ter no máximo 5 MB." }));
+                      e.target.value = "";
+                      return;
+                    }
+                    setErrors((prev) => ({ ...prev, avatarUrl: "" }));
+                    setAvatarFile(file);
+                  }}
+                />
+                <p className="text-xs text-muted-foreground">Escolha uma imagem de até 5 MB ou informe uma URL abaixo.</p>
+                <Label htmlFor="avatarUrl">URL da foto (opcional)</Label>
                 <Input
                   id="avatarUrl"
                   value={avatarUrl}
                   placeholder="https://..."
-                  onChange={(e) => setAvatarUrl(e.target.value)}
+                  onChange={(e) => {
+                    setAvatarUrl(e.target.value);
+                    setAvatarFile(null);
+                  }}
                   aria-invalid={Boolean(errors["avatarUrl"])}
                   className="bg-surface"
                 />
-
-                {errors["avatarUrl"] && (
-                  <p className="text-xs text-destructive">{errors["avatarUrl"]}</p>
+                {errors["avatarUrl"] && <p className="text-xs text-destructive">{errors["avatarUrl"]}</p>}
+                {(avatarFile || avatarUrl) && (
+                  <img
+                    src={avatarFile ? URL.createObjectURL(avatarFile) : avatarUrl}
+                    alt="Prévia da foto de perfil"
+                    className="size-20 rounded-xl border border-border object-cover"
+                  />
                 )}
               </div>
-
               {/* SALVAR */}
               <Button type="submit" variant="hero" disabled={saving}>
                 {saving ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
