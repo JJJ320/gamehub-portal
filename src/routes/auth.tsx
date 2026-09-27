@@ -452,7 +452,7 @@ function AuthPage() {
 
           <p className="mt-6 text-center text-xs text-muted-foreground">
             <Link to="/" className="hover:text-primary">
-              Voltar para o catÃ¡logo
+              Voltar para o catálogo
             </Link>
           </p>
         </div>
