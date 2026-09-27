@@ -26,10 +26,7 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 function timestampToIso(value: unknown): string | undefined {
   const timestamp = value as Timestamp | undefined;
-  if (!timestamp || typeof timestamp.toDate !== "function") {
-    return undefined;
-  }
-
+  if (!timestamp || typeof timestamp.toDate !== "function") return undefined;
   return timestamp.toDate().toISOString();
 }
 
@@ -48,24 +45,35 @@ function profileFromData(
   };
 }
 
+/**
+ * Garante que o documento de perfil exista.
+ * Esta função continua sendo usada no cadastro, mas o carregamento normal
+ * não faz mais uma segunda leitura depois de criar o documento.
+ */
 export async function ensureUserProfile(user: User, displayName?: string) {
   const profileRef = doc(db, "profiles", user.uid);
   const snapshot = await getDoc(profileRef);
-  const existing = snapshot.exists() ? (snapshot.data() as Record<string, unknown>) : undefined;
+  const existing = snapshot.exists()
+    ? (snapshot.data() as Record<string, unknown>)
+    : undefined;
+
+  const name =
+    displayName ??
+    (typeof existing?.["display_name"] === "string"
+      ? existing["display_name"]
+      : user.displayName ?? null);
+
+  const avatar =
+    typeof existing?.["avatar_url"] === "string"
+      ? existing["avatar_url"]
+      : user.photoURL ?? null;
 
   await setDoc(
     profileRef,
     {
       id: user.uid,
-      display_name:
-        displayName ??
-        (typeof existing?.["display_name"] === "string"
-          ? existing["display_name"]
-          : (user.displayName ?? null)),
-      avatar_url:
-        typeof existing?.["avatar_url"] === "string"
-          ? existing["avatar_url"]
-          : (user.photoURL ?? null),
+      display_name: name,
+      avatar_url: avatar,
       ...(snapshot.exists()
         ? { updated_at: serverTimestamp() }
         : {
@@ -83,23 +91,46 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   const loadProfile = async (currentUser: User) => {
+    const profileRef = doc(db, "profiles", currentUser.uid);
+
     try {
-      const profileRef = doc(db, "profiles", currentUser.uid);
       const snapshot = await getDoc(profileRef);
 
-      if (!snapshot.exists()) {
-        await ensureUserProfile(currentUser);
-        const created = await getDoc(profileRef);
+      if (snapshot.exists()) {
         setProfile(
           profileFromData(
             currentUser.uid,
-            created.exists() ? (created.data() as Record<string, unknown>) : undefined,
+            snapshot.data() as Record<string, unknown>,
           ),
         );
         return;
       }
 
-      setProfile(profileFromData(currentUser.uid, snapshot.data() as Record<string, unknown>));
+      // Perfil novo: monta o estado imediatamente, sem fazer
+      // getDoc -> setDoc -> getDoc em sequência.
+      const initialProfile: Profile = {
+        id: currentUser.uid,
+        display_name: currentUser.displayName ?? null,
+        avatar_url: currentUser.photoURL ?? null,
+      };
+
+      setProfile(initialProfile);
+
+      // Persiste em segundo plano. O usuário não precisa esperar a escrita
+      // do Firestore para conseguir visualizar o perfil.
+      void setDoc(
+        profileRef,
+        {
+          id: currentUser.uid,
+          display_name: initialProfile.display_name,
+          avatar_url: initialProfile.avatar_url,
+          created_at: serverTimestamp(),
+          updated_at: serverTimestamp(),
+        },
+        { merge: true },
+      ).catch((error) => {
+        console.error("Erro ao criar perfil no Firestore:", error);
+      });
     } catch (error) {
       console.error("Erro ao carregar perfil:", error);
       setProfile(null);
@@ -123,11 +154,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       setUser(currentUser);
 
-      if (currentUser) {
-        await loadProfile(currentUser);
-      } else {
+      if (!currentUser) {
         setProfile(null);
+        if (mounted) setLoading(false);
+        return;
       }
+
+      await loadProfile(currentUser);
 
       if (mounted) {
         setLoading(false);
