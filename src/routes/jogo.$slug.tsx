@@ -407,7 +407,8 @@ function GameDetailPage() {
                       allow="fullscreen; autoplay"
                     />
                   )}
-                </GamePlayer>
+                  </GamePlayer>
+                </>
               ) : (
                 <div className="grid place-items-center rounded-2xl border border-border/70 bg-surface/60 p-10 text-center">
                   <p className="text-sm text-muted-foreground">
