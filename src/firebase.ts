@@ -15,4 +15,7 @@ const app = initializeApp(firebaseConfig);
 
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
-export const db = getFirestore(app);
+
+// O banco do projeto tem ID "gamehub-portal", então não podemos usar
+// getFirestore(app), que aponta para o banco "(default)".
+export const db = getFirestore(app, "gamehub-portal");
