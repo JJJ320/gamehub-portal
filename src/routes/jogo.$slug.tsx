@@ -37,11 +37,11 @@ function GameDetailPage() {
     <div className="min-h-screen">
       <SiteHeader />
       <div className="relative">
-        <div className="relative h-56 overflow-hidden sm:h-80">
+        <div className="relative z-0 h-56 overflow-hidden sm:h-80">
           <img src={game.hero ?? game.cover} alt={game.title} className="size-full object-cover" />
           <div className="absolute inset-0 bg-gradient-to-t from-background via-background/60 to-background/20" />
         </div>
-        <main className="mx-auto -mt-24 max-w-7xl px-4 pb-4 sm:px-6">
+        <main className="relative z-10 mx-auto -mt-24 max-w-7xl px-4 pb-4 sm:px-6">
           <nav className="relative text-xs text-muted-foreground">
             <Link to="/">Início</Link> / <Link to="/jogos" search={{ q: undefined, cat: undefined }}>Jogos</Link> / {game.title}
           </nav>
