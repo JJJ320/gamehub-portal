@@ -3,6 +3,7 @@ import {
   doc,
   getDoc,
   getDocs,
+  increment,
   serverTimestamp,
   setDoc,
   type Timestamp,
@@ -33,11 +34,13 @@ export async function getUserGameData(
   slug: string,
 ): Promise<UserGameData> {
   const snapshot = await getDoc(gameRef(userId, slug));
+
   if (!snapshot.exists()) {
     return { gameSlug: slug, favorite: false, playTimeSeconds: 0 };
   }
 
   const data = snapshot.data();
+
   return {
     gameSlug: slug,
     favorite: data.favorite === true,
@@ -69,13 +72,16 @@ export async function recordGamePlay(
   slug: string,
   additionalSeconds: number,
 ): Promise<void> {
-  const current = await getUserGameData(userId, slug);
+  const seconds = Math.max(0, Math.round(additionalSeconds));
+
+  // increment() evita perda de tempo quando duas atualizações acontecem
+  // quase ao mesmo tempo e também permite criar o registro do histórico
+  // assim que a partida começa.
   await setDoc(
     gameRef(userId, slug),
     {
       gameSlug: slug,
-      favorite: current.favorite,
-      playTimeSeconds: current.playTimeSeconds + Math.max(0, Math.round(additionalSeconds)),
+      playTimeSeconds: increment(seconds),
       lastPlayedAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     },
@@ -88,11 +94,13 @@ export async function setGameRating(
   slug: string,
   rating: number,
 ): Promise<void> {
+  const safeRating = Math.max(1, Math.min(5, Math.round(rating)));
+
   await setDoc(
     gameRef(userId, slug),
     {
       gameSlug: slug,
-      rating,
+      rating: safeRating,
       updatedAt: serverTimestamp(),
     },
     { merge: true },
@@ -102,9 +110,13 @@ export async function setGameRating(
 export async function listUserGameData(
   userId: string,
 ): Promise<UserGameData[]> {
-  const snapshot = await getDocs(collection(db, "userGames", userId, "games"));
+  const snapshot = await getDocs(
+    collection(db, "userGames", userId, "games"),
+  );
+
   return snapshot.docs.map((item) => {
     const data = item.data();
+
     return {
       gameSlug: item.id,
       favorite: data.favorite === true,
