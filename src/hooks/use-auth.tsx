@@ -19,6 +19,7 @@ type AuthContextValue = {
   profile: Profile | null;
   loading: boolean;
   refreshProfile: () => Promise<void>;
+  updateProfileLocal: (updates: Pick<Profile, "display_name" | "avatar_url">) => void;
   signOut: () => Promise<void>;
 };
 
@@ -38,18 +39,15 @@ function profileFromData(
 
   return {
     id: userId,
-    display_name: typeof data["display_name"] === "string" ? data["display_name"] : null,
-    avatar_url: typeof data["avatar_url"] === "string" ? data["avatar_url"] : null,
+    display_name:
+      typeof data["display_name"] === "string" ? data["display_name"] : null,
+    avatar_url:
+      typeof data["avatar_url"] === "string" ? data["avatar_url"] : null,
     created_at: timestampToIso(data["created_at"]),
     updated_at: timestampToIso(data["updated_at"]),
   };
 }
 
-/**
- * Garante que o documento de perfil exista.
- * Esta função continua sendo usada no cadastro, mas o carregamento normal
- * não faz mais uma segunda leitura depois de criar o documento.
- */
 export async function ensureUserProfile(user: User, displayName?: string) {
   const profileRef = doc(db, "profiles", user.uid);
   const snapshot = await getDoc(profileRef);
@@ -93,31 +91,39 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const loadProfile = async (currentUser: User) => {
     const profileRef = doc(db, "profiles", currentUser.uid);
 
+    // O Auth já tem os dados básicos. Mostra a tela imediatamente e busca
+    // o perfil salvo no Firestore em segundo plano.
+    setProfile((current) =>
+      current?.id === currentUser.uid
+        ? current
+        : {
+            id: currentUser.uid,
+            display_name: currentUser.displayName ?? null,
+            avatar_url: currentUser.photoURL ?? null,
+          },
+    );
+
     try {
       const snapshot = await getDoc(profileRef);
 
       if (snapshot.exists()) {
-        setProfile(
-          profileFromData(
-            currentUser.uid,
-            snapshot.data() as Record<string, unknown>,
-          ),
+        const loadedProfile = profileFromData(
+          currentUser.uid,
+          snapshot.data() as Record<string, unknown>,
         );
+
+        if (loadedProfile) {
+          setProfile(loadedProfile);
+        }
         return;
       }
 
-      // Perfil novo: monta o estado imediatamente, sem fazer
-      // getDoc -> setDoc -> getDoc em sequência.
       const initialProfile: Profile = {
         id: currentUser.uid,
         display_name: currentUser.displayName ?? null,
         avatar_url: currentUser.photoURL ?? null,
       };
 
-      setProfile(initialProfile);
-
-      // Persiste em segundo plano. O usuário não precisa esperar a escrita
-      // do Firestore para conseguir visualizar o perfil.
       void setDoc(
         profileRef,
         {
@@ -133,7 +139,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
     } catch (error) {
       console.error("Erro ao carregar perfil:", error);
-      setProfile(null);
+      // Mantém os dados vindos do Firebase Auth em vez de bloquear a tela.
     }
   };
 
@@ -146,25 +152,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await loadProfile(user);
   };
 
+  const updateProfileLocal = (
+    updates: Pick<Profile, "display_name" | "avatar_url">,
+  ) => {
+    setProfile((current) => ({
+      id: user?.uid ?? current?.id ?? "",
+      display_name: updates.display_name,
+      avatar_url: updates.avatar_url,
+      created_at: current?.created_at,
+      updated_at: new Date().toISOString(),
+    }));
+  };
+
   useEffect(() => {
     let mounted = true;
 
-    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       if (!mounted) return;
 
       setUser(currentUser);
 
       if (!currentUser) {
         setProfile(null);
-        if (mounted) setLoading(false);
+        setLoading(false);
         return;
       }
 
-      await loadProfile(currentUser);
+      // Libera a interface imediatamente. A leitura do perfil continua
+      // em segundo plano.
+      setProfile({
+        id: currentUser.uid,
+        display_name: currentUser.displayName ?? null,
+        avatar_url: currentUser.photoURL ?? null,
+      });
+      setLoading(false);
 
-      if (mounted) {
-        setLoading(false);
-      }
+      void loadProfile(currentUser);
     });
 
     return () => {
@@ -187,6 +210,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         profile,
         loading,
         refreshProfile,
+        updateProfileLocal,
         signOut,
       }}
     >

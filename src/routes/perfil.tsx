@@ -70,7 +70,7 @@ const avatarSchema = z.union([
 function ProfilePage() {
   const navigate = useNavigate();
 
-  const { user, profile, loading, refreshProfile, signOut } = useAuth();
+  const { user, profile, loading, updateProfileLocal, signOut } = useAuth();
 
   const [displayName, setDisplayName] = useState("");
   const [avatarUrl, setAvatarUrl] = useState("");
