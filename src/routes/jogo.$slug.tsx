@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+﻿import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   CalendarDays,
   Gamepad2,
@@ -14,6 +14,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { GameCard } from "@/components/game-card";
 import { GamePlayer } from "@/components/game-player";
+import { HostedHtmlGame } from "@/components/hosted-html-game";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { Button } from "@/components/ui/button";
@@ -71,7 +72,7 @@ function GameDetailPage() {
 
     void getUserGameData(user.uid, game.slug)
       .then((data) => {
-        // Se o usuário já interagiu com favorito/avaliação, não deixe uma
+        // Se o usuÃ¡rio jÃ¡ interagiu com favorito/avaliaÃ§Ã£o, nÃ£o deixe uma
         // leitura antiga do Firestore sobrescrever o estado otimista.
         if (requestVersion !== gameDataRequestVersion.current) return;
         setGameData(data);
@@ -90,7 +91,7 @@ function GameDetailPage() {
     setLiveNow(now);
 
     void recordGamePlay(user.uid, game.slug, 0).catch((error) =>
-      console.error("Falha ao registrar início da partida:", error),
+      console.error("Falha ao registrar inÃ­cio da partida:", error),
     );
 
     const displayInterval = window.setInterval(() => {
@@ -178,7 +179,7 @@ function GameDetailPage() {
         ...current,
         rating: previous || undefined,
       }));
-      console.error("Falha ao salvar avaliação:", error);
+      console.error("Falha ao salvar avaliaÃ§Ã£o:", error);
     } finally {
       setSavingRating(false);
     }
@@ -195,7 +196,7 @@ function GameDetailPage() {
         <SiteHeader />
         <main className="mx-auto max-w-3xl px-4 py-24 text-center">
           <h1 className="font-display text-3xl font-extrabold">
-            Jogo não encontrado
+            Jogo nÃ£o encontrado
           </h1>
           <Button className="mt-6" asChild>
             <Link to="/jogos" search={{ q: undefined, cat: undefined }}>
@@ -214,7 +215,7 @@ function GameDetailPage() {
         categories.find((category) => category.slug === categorySlug)?.name,
     )
     .filter(Boolean)
-    .join(" · ");
+    .join(" Â· ");
 
   const related = games
     .filter(
@@ -242,7 +243,7 @@ function GameDetailPage() {
 
         <main className="relative z-10 mx-auto -mt-24 max-w-7xl px-4 pb-4 sm:px-6">
           <nav className="relative text-xs text-muted-foreground">
-            <Link to="/">Início</Link> /{" "}
+            <Link to="/">InÃ­cio</Link> /{" "}
             <Link to="/jogos" search={{ q: undefined, cat: undefined }}>
               Jogos
             </Link>{" "}
@@ -262,7 +263,7 @@ function GameDetailPage() {
               </h1>
 
               <p className="mt-2 text-sm text-muted-foreground">
-                {game.genre} · {categoryNames}
+                {game.genre} Â· {categoryNames}
               </p>
 
               <div className="mt-4 flex flex-wrap gap-2">
@@ -337,7 +338,7 @@ function GameDetailPage() {
               {user && (
                 <div className="mt-5 rounded-xl border border-border/70 bg-surface/60 p-4">
                   <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-                    Sua avaliação
+                    Sua avaliaÃ§Ã£o
                   </p>
 
                   <div className="mt-2 flex items-center gap-1">
@@ -361,7 +362,7 @@ function GameDetailPage() {
                     ))}
 
                     <span className="ml-2 text-sm text-muted-foreground">
-                      {rating ? `${rating}/5` : "Ainda não avaliado"}
+                      {rating ? `${rating}/5` : "Ainda nÃ£o avaliado"}
                     </span>
                   </div>
                 </div>
@@ -371,7 +372,7 @@ function GameDetailPage() {
                 <div className="mt-4 flex gap-3 rounded-xl border border-border/70 bg-surface/60 p-4">
                   <Info className="size-4 shrink-0 text-primary" />
                   <p className="text-xs text-muted-foreground">
-                    Este jogo ainda não possui uma versão jogável configurada.
+                    Este jogo ainda nÃ£o possui uma versÃ£o jogÃ¡vel configurada.
                   </p>
                 </div>
               )}
@@ -397,16 +398,22 @@ function GameDetailPage() {
                     </span>
                   </div>
                   <GamePlayer>
-                  {PlayableGame ? (
-                    <PlayableGame />
-                  ) : (
-                    <iframe
-                      src={game.gameUrl}
-                      title={game.title}
-                      className="size-full border-0"
-                      allow="fullscreen; autoplay"
-                    />
-                  )}
+                    {PlayableGame ? (
+                      <PlayableGame />
+                    ) : game.gameUrl && (game.gameType === "html" || game.gameType === "zip") ? (
+                      <HostedHtmlGame
+                        url={game.gameUrl}
+                        type={game.gameType}
+                        title={game.title}
+                      />
+                    ) : (
+                      <iframe
+                        src={game.gameUrl}
+                        title={game.title}
+                        className="size-full border-0"
+                        allow="fullscreen; autoplay; gamepad"
+                      />
+                    )}
                   </GamePlayer>
                 </>
               ) : (
@@ -430,7 +437,7 @@ function GameDetailPage() {
           {related.length > 0 && (
             <section className="mt-12">
               <h2 className="mb-4 font-display text-xl font-extrabold uppercase">
-                Você também pode gostar
+                VocÃª tambÃ©m pode gostar
               </h2>
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6">
                 {related.map((item) => (

@@ -2,8 +2,10 @@ import { collection, deleteDoc, doc, getDocs, query, serverTimestamp, setDoc, wh
 import { db } from "@/firebase";
 import type { Game } from "@/data/games";
 
+export type GameType = "internal" | "url" | "html" | "zip";
+
 export type GameDocument = Game & {
-  gameType?: "internal" | "url" | "html";
+  gameType?: GameType;
   gameUrl?: string;
   published?: boolean;
   createdAt?: unknown;
@@ -57,7 +59,7 @@ export async function uploadGameAsset(
   body.append("file", file);
   body.append("upload_preset", uploadPreset);
   body.append("folder", `gamehub/games/${slug}`);
-  body.append("public_id", kind === "game" ? "game" : kind);
+  body.append("public_id", kind === "game" ? file.name.replace(/\\.[^/.]+$/, "") || "game" : kind);
 
   const response = await fetch(endpoint, { method: "POST", body });
   const result = await response.json();
