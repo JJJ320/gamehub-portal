@@ -122,7 +122,7 @@ export default function FlappyPombo() {
       canvas.height = Math.round(ch * dpr);
       canvas.style.width = `${cw}px`;
       canvas.style.height = `${ch}px`;
-      scale = Math.max(cw / W, ch / H);
+      scale = Math.min(cw / W, ch / H);
       ox = (cw - W * scale) / 2;
       oy = (ch - H * scale) / 2;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
