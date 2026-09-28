@@ -1,4 +1,4 @@
-import "./lib/error-capture";
+﻿import "./lib/error-capture";
 
 import { consumeLastCapturedError } from "./lib/error-capture";
 import { renderErrorPage } from "./lib/error-page";
@@ -12,7 +12,7 @@ type WorkerEnv = {
 };
 
 const FIREBASE_PROJECT_ID = "gamehub-portal";
-const FIREBASE_DATABASE_ID = "gamehub-portal";
+const FIREBASE_DATABASE_ID = "(default)";
 const FIREBASE_API_KEY = "AIzaSyA0Uy-AkpUlXFpXKar4nmdB9t7bFm__kxA";
 const SUPABASE_URL = "https://zijhmkurzpdlwzvpumdd.supabase.co";
 const SUPABASE_BUCKET = "gamehub-games";
@@ -128,7 +128,7 @@ async function uploadToSupabase(
 
   const contentLength = Number(request.headers.get("content-length") ?? "0");
   if (contentLength > MAX_UPLOAD_BYTES) {
-    return json({ error: "Arquivo muito grande. O limite atual é 50 MB." }, 413);
+    return json({ error: "Arquivo muito grande. O limite atual Ã© 50 MB." }, 413);
   }
 
   const objectPath = `games/${slug}/${getStoredFilename(kind, filename)}`;
@@ -174,7 +174,7 @@ async function deleteSupabaseGameAssets(slug: string, serviceRoleKey: string): P
   );
 
   if (!listResponse.ok) {
-    throw new Error("Não foi possível listar os arquivos do jogo no Supabase.");
+    throw new Error("NÃ£o foi possÃ­vel listar os arquivos do jogo no Supabase.");
   }
 
   const objects = (await listResponse.json()) as Array<{ name?: string }>;
@@ -200,7 +200,7 @@ async function deleteSupabaseGameAssets(slug: string, serviceRoleKey: string): P
 
   if (!deleteResponse.ok) {
     console.error("Supabase delete failed:", await deleteResponse.text());
-    throw new Error("Não foi possível excluir os arquivos do jogo no Supabase.");
+    throw new Error("NÃ£o foi possÃ­vel excluir os arquivos do jogo no Supabase.");
   }
 }
 
@@ -224,7 +224,7 @@ async function handleGameAsset(request: Request, env: WorkerEnv): Promise<Respon
     }
 
     if (!env.SUPABASE_SERVICE_ROLE_KEY) {
-      return json({ error: "Supabase Storage não está configurado no Worker." }, 503);
+      return json({ error: "Supabase Storage nÃ£o estÃ¡ configurado no Worker." }, 503);
     }
 
     const idToken = getBearerToken(request);
@@ -237,7 +237,7 @@ async function handleGameAsset(request: Request, env: WorkerEnv): Promise<Respon
     const filename = sanitizeSegment(url.searchParams.get("filename") ?? "game.bin");
 
     if (!slug || !["cover", "hero", "game"].includes(kind ?? "")) {
-      return json({ error: "Slug ou tipo de arquivo inválido." }, 400);
+      return json({ error: "Slug ou tipo de arquivo invÃ¡lido." }, 400);
     }
 
     return uploadToSupabase(
@@ -255,7 +255,7 @@ async function handleGameAsset(request: Request, env: WorkerEnv): Promise<Respon
     }
 
     if (!env.SUPABASE_SERVICE_ROLE_KEY) {
-      return json({ error: "Supabase Storage não está configurado no Worker." }, 503);
+      return json({ error: "Supabase Storage nÃ£o estÃ¡ configurado no Worker." }, 503);
     }
 
     const idToken = getBearerToken(request);
@@ -264,7 +264,7 @@ async function handleGameAsset(request: Request, env: WorkerEnv): Promise<Respon
     }
 
     const slug = sanitizeSegment(url.searchParams.get("slug") ?? "");
-    if (!slug) return json({ error: "Slug inválido." }, 400);
+    if (!slug) return json({ error: "Slug invÃ¡lido." }, 400);
 
     try {
       await deleteSupabaseGameAssets(slug, env.SUPABASE_SERVICE_ROLE_KEY);
@@ -296,3 +296,4 @@ export default {
     }
   },
 };
+
