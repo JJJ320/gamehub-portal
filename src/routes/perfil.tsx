@@ -1,8 +1,8 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+﻿import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Clock, Heart, Loader2, LogOut, Save, LockKeyhole } from "lucide-react";
 import { useEffect, useState } from "react";
 import { z } from "zod";
-import { EmailAuthProvider, linkWithCredential, updatePassword, updateProfile } from "firebase/auth";
+import { EmailAuthProvider, GoogleAuthProvider, linkWithCredential, reauthenticateWithPopup, updatePassword, updateProfile } from "firebase/auth";
 
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
@@ -19,15 +19,15 @@ export const Route = createFileRoute("/perfil")({
   ssr: false,
   head: () => ({
     meta: [
-      { title: "Meu perfil — GameHub" },
+      { title: "Meu perfil â€” GameHub" },
       { name: "description", content: "Gerencie seu perfil GameHub." },
     ],
   }),
   component: ProfilePage,
 });
 
-const nameSchema = z.string().trim().min(2, "Informe um nome com pelo menos 2 caracteres").max(60, "O nome deve ter no máximo 60 caracteres");
-const avatarSchema = z.union([z.literal(""), z.string().trim().url("Informe uma URL válida de imagem").max(500)]);
+const nameSchema = z.string().trim().min(2, "Informe um nome com pelo menos 2 caracteres").max(60, "O nome deve ter no mÃ¡ximo 60 caracteres");
+const avatarSchema = z.union([z.literal(""), z.string().trim().url("Informe uma URL vÃ¡lida de imagem").max(500)]);
 
 function ProfilePage() {
   const navigate = useNavigate();
@@ -89,8 +89,8 @@ function ProfilePage() {
     const avatarResult = avatarFile ? { success: true as const, data: avatarUrl.trim() } : avatarSchema.safeParse(avatarUrl.trim());
     const next: Record<string, string> = {};
 
-    if (!nameResult.success) next.displayName = nameResult.error.issues[0]?.message ?? "Nome inválido";
-    if (!avatarResult.success) next.avatarUrl = avatarResult.error.issues[0]?.message ?? "URL do avatar inválida";
+    if (!nameResult.success) next.displayName = nameResult.error.issues[0]?.message ?? "Nome invÃ¡lido";
+    if (!avatarResult.success) next.avatarUrl = avatarResult.error.issues[0]?.message ?? "URL do avatar invÃ¡lida";
     if (Object.keys(next).length > 0) {
       setErrors(next);
       return;
@@ -104,7 +104,7 @@ function ProfilePage() {
       if (avatarFile) {
         const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
         const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
-        if (!cloudName || !uploadPreset) throw new Error("O upload de imagens não está configurado.");
+        if (!cloudName || !uploadPreset) throw new Error("O upload de imagens nÃ£o estÃ¡ configurado.");
         const body = new FormData();
         body.append("file", avatarFile);
         body.append("upload_preset", uploadPreset);
@@ -144,18 +144,33 @@ function ProfilePage() {
       return;
     }
     if (newPassword !== confirmPassword) {
-      setPasswordStatus({ kind: "error", text: "As senhas não são iguais." });
+      setPasswordStatus({ kind: "error", text: "As senhas nÃ£o sÃ£o iguais." });
       return;
     }
 
     setPasswordSaving(true);
     try {
-      if (hasPasswordProvider) {
-        await updatePassword(user, newPassword);
-      } else {
+      const savePassword = async () => {
+        if (hasPasswordProvider) {
+          await updatePassword(user, newPassword);
+          return;
+        }
         if (!user.email) throw new Error("Sua conta não possui e-mail.");
         await linkWithCredential(user, EmailAuthProvider.credential(user.email, newPassword));
+      };
+
+      try {
+        await savePassword();
+      } catch (error) {
+        const code = error && typeof error === "object" && "code" in error ? String(error.code) : "";
+        if (code !== "auth/requires-recent-login") throw error;
+        const hasGoogleProvider = user.providerData.some((provider) => provider.providerId === "google.com");
+        if (!hasGoogleProvider) throw error;
+        setPasswordStatus({ kind: "ok", text: "É necessária uma confirmação rápida da sua conta Google..." });
+        await reauthenticateWithPopup(user, new GoogleAuthProvider());
+        await savePassword();
       }
+
       setNewPassword("");
       setConfirmPassword("");
       setPasswordStatus({
@@ -166,14 +181,23 @@ function ProfilePage() {
       });
     } catch (error) {
       console.error("Erro ao salvar senha:", error);
-      setPasswordStatus({
-        kind: "error",
-        text: "Não foi possível salvar a senha. Se o Firebase pedir uma nova autenticação, saia e entre novamente pelo Google e tente de novo.",
-      });
+      const code = error && typeof error === "object" && "code" in error ? String(error.code) : "";
+      let message = "Não foi possível salvar a senha. Tente novamente.";
+      if (code === "auth/popup-closed-by-user" || code === "auth/cancelled-popup-request") {
+        message = "A confirmação do Google foi cancelada. Clique novamente para tentar outra vez.";
+      } else if (code === "auth/popup-blocked") {
+        message = "O navegador bloqueou a janela do Google. Permita pop-ups para o GameHub e tente novamente.";
+      } else if (code === "auth/credential-already-in-use") {
+        message = "Este e-mail já está vinculado a outra conta do Firebase.";
+      } else if (code === "auth/provider-already-linked") {
+        message = "Sua conta já possui uma senha. Tente usar a opção de alterar senha.";
+      } else if (code === "auth/requires-recent-login") {
+        message = "Não foi possível confirmar sua conta Google. Saia e entre novamente pelo Google e tente de novo.";
+      }
+      setPasswordStatus({ kind: "error", text: message });
     } finally {
       setPasswordSaving(false);
-    }
-  };
+    }  };
 
   const handleSignOut = async () => {
     try {
@@ -181,7 +205,7 @@ function ProfilePage() {
       navigate({ to: "/", replace: true });
     } catch (error) {
       console.error("Erro ao sair da conta:", error);
-      setStatus({ kind: "error", text: "Não foi possível sair da conta. Tente novamente." });
+      setStatus({ kind: "error", text: "NÃ£o foi possÃ­vel sair da conta. Tente novamente." });
     }
   };
 
@@ -190,13 +214,13 @@ function ProfilePage() {
       <SiteHeader />
       <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
         <nav className="text-xs text-muted-foreground">
-          <Link to="/" className="hover:text-primary">Início</Link>{" "} / Meu perfil
+          <Link to="/" className="hover:text-primary">InÃ­cio</Link>{" "} / Meu perfil
         </nav>
 
         <header className="mt-4 flex flex-col gap-4 rounded-2xl border border-border bg-card p-5 shadow-card sm:flex-row sm:items-center sm:p-6">
           <div className="flex items-center gap-4">
             {profile?.avatar_url ? (
-              <img src={profile.avatar_url} alt={`Avatar de ${profile.display_name ?? "usuário"}`} className="size-16 shrink-0 rounded-xl border border-border object-cover" />
+              <img src={profile.avatar_url} alt={`Avatar de ${profile.display_name ?? "usuÃ¡rio"}`} className="size-16 shrink-0 rounded-xl border border-border object-cover" />
             ) : (
               <span className="grid size-16 shrink-0 place-items-center rounded-xl bg-gradient-violet font-display text-xl font-extrabold text-primary-foreground shadow-glow">{initials}</span>
             )}
@@ -215,7 +239,7 @@ function ProfilePage() {
               <h2 className="font-display text-lg font-bold uppercase">Dados do perfil</h2>
               <form onSubmit={save} className="mt-4 space-y-4" noValidate>
                 <div className="space-y-1.5">
-                  <Label htmlFor="displayName">Nome de exibição</Label>
+                  <Label htmlFor="displayName">Nome de exibiÃ§Ã£o</Label>
                   <Input id="displayName" value={displayName} onChange={(e) => setDisplayName(e.target.value)} aria-invalid={Boolean(errors.displayName)} className="bg-surface" />
                   {errors.displayName && <p className="text-xs text-destructive">{errors.displayName}</p>}
                 </div>
@@ -223,7 +247,7 @@ function ProfilePage() {
                 <div className="space-y-1.5">
                   <Label htmlFor="email">E-mail</Label>
                   <Input id="email" value={user.email ?? ""} disabled className="bg-surface" />
-                  <p className="text-xs text-muted-foreground">O e-mail da conta não pode ser alterado aqui.</p>
+                  <p className="text-xs text-muted-foreground">O e-mail da conta nÃ£o pode ser alterado aqui.</p>
                 </div>
 
                 <div className="space-y-1.5">
@@ -231,21 +255,21 @@ function ProfilePage() {
                   <Input id="avatarFile" type="file" accept="image/*" className="bg-surface" onChange={(e) => {
                     const file = e.target.files?.[0] ?? null;
                     if (file && file.size > 5 * 1024 * 1024) {
-                      setErrors((prev) => ({ ...prev, avatarUrl: "A imagem deve ter no máximo 5 MB." }));
+                      setErrors((prev) => ({ ...prev, avatarUrl: "A imagem deve ter no mÃ¡ximo 5 MB." }));
                       e.target.value = "";
                       return;
                     }
                     setErrors((prev) => ({ ...prev, avatarUrl: "" }));
                     setAvatarFile(file);
                   }} />
-                  <p className="text-xs text-muted-foreground">Escolha uma imagem de até 5 MB ou informe uma URL abaixo.</p>
+                  <p className="text-xs text-muted-foreground">Escolha uma imagem de atÃ© 5 MB ou informe uma URL abaixo.</p>
                   <Label htmlFor="avatarUrl">URL da foto (opcional)</Label>
                   <Input id="avatarUrl" value={avatarUrl} placeholder="https://..." onChange={(e) => { setAvatarUrl(e.target.value); setAvatarFile(null); }} aria-invalid={Boolean(errors.avatarUrl)} className="bg-surface" />
                   {errors.avatarUrl && <p className="text-xs text-destructive">{errors.avatarUrl}</p>}
-                  {(avatarFile || avatarUrl) && <img src={avatarFile ? URL.createObjectURL(avatarFile) : avatarUrl} alt="Prévia da foto de perfil" className="size-20 rounded-xl border border-border object-cover" />}
+                  {(avatarFile || avatarUrl) && <img src={avatarFile ? URL.createObjectURL(avatarFile) : avatarUrl} alt="PrÃ©via da foto de perfil" className="size-20 rounded-xl border border-border object-cover" />}
                 </div>
 
-                <Button type="submit" variant="hero" disabled={saving}><Save className="size-4" />Salvar alterações</Button>
+                <Button type="submit" variant="hero" disabled={saving}><Save className="size-4" />Salvar alteraÃ§Ãµes</Button>
                 {status && <p role={status.kind === "error" ? "alert" : "status"} className={status.kind === "error" ? "rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive" : "rounded-lg border border-primary/40 bg-primary/10 px-3 py-2 text-sm"}>{status.text}</p>}
               </form>
             </section>
@@ -258,13 +282,13 @@ function ProfilePage() {
               <p className="mt-1 text-sm text-muted-foreground">
                 {hasPasswordProvider
                   ? "Altere sua senha de acesso ao GameHub."
-                  : "Sua conta usa o Google. Crie uma senha para também poder entrar com seu e-mail."}
+                  : "Sua conta usa o Google. Crie uma senha para tambÃ©m poder entrar com seu e-mail."}
               </p>
 
               <form onSubmit={handlePassword} className="mt-4 space-y-4">
                 <div className="space-y-1.5">
                   <Label htmlFor="newPassword">{hasPasswordProvider ? "Nova senha" : "Criar senha"}</Label>
-                  <Input id="newPassword" type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} autoComplete="new-password" placeholder="Mínimo de 8 caracteres" className="bg-surface" />
+                  <Input id="newPassword" type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} autoComplete="new-password" placeholder="MÃ­nimo de 8 caracteres" className="bg-surface" />
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="confirmPassword">Confirmar senha</Label>
@@ -280,8 +304,8 @@ function ProfilePage() {
           </div>
 
           <aside className="space-y-6">
-            <UserGamesCard title="Favoritos" icon={<Heart className="size-5 text-primary" />} items={userGames.filter((item) => item.favorite)} games={games} emptyText="Você ainda não favoritou nenhum jogo." />
-            <UserGamesCard title="Histórico" icon={<Clock className="size-5 text-primary" />} items={[...userGames].filter((item) => item.lastPlayedAt).sort((a, b) => (b.lastPlayedAt ?? "").localeCompare(a.lastPlayedAt ?? "")).slice(0, 6)} games={games} emptyText="Seu histórico aparecerá aqui quando você jogar." />
+            <UserGamesCard title="Favoritos" icon={<Heart className="size-5 text-primary" />} items={userGames.filter((item) => item.favorite)} games={games} emptyText="VocÃª ainda nÃ£o favoritou nenhum jogo." />
+            <UserGamesCard title="HistÃ³rico" icon={<Clock className="size-5 text-primary" />} items={[...userGames].filter((item) => item.lastPlayedAt).sort((a, b) => (b.lastPlayedAt ?? "").localeCompare(a.lastPlayedAt ?? "")).slice(0, 6)} games={games} emptyText="Seu histÃ³rico aparecerÃ¡ aqui quando vocÃª jogar." />
           </aside>
         </div>
       </main>
@@ -305,7 +329,7 @@ function UserGamesCard({ icon, title, items, games, emptyText }: { icon: React.R
                 <img src={game.cover} alt="" className="size-12 rounded-lg object-cover" />
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-bold">{game.title}</p>
-                  <p className="text-xs text-muted-foreground">{item.playTimeMs > 0 ? `${playTime} de jogo` : "Ainda sem tempo registrado"}{item.rating ? ` · ${item.rating}/5` : ""}</p>
+                  <p className="text-xs text-muted-foreground">{item.playTimeMs > 0 ? `${playTime} de jogo` : "Ainda sem tempo registrado"}{item.rating ? ` Â· ${item.rating}/5` : ""}</p>
                 </div>
               </Link>
             );
@@ -325,3 +349,4 @@ function formatPlayTime(milliseconds: number): string {
   if (hours > 0) return `${hours}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}.${String(ms).padStart(3, "0")}`;
   return `${minutes}:${String(seconds).padStart(2, "0")}.${String(ms).padStart(3, "0")}`;
 }
+
