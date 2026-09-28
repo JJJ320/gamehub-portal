@@ -13,6 +13,7 @@ export type GameDocument = Game & {
 };
 
 const gamesCollection = collection(db, "games");
+const MAX_GAME_FILE_BYTES = 50 * 1024 * 1024;
 
 export async function listPublishedGames(): Promise<GameDocument[]> {
   const snapshot = await getDocs(query(gamesCollection, where("published", "==", true)));
@@ -38,45 +39,58 @@ export async function saveGame(game: GameDocument): Promise<void> {
   );
 }
 
+async function deleteGameAssets(slug: string): Promise<void> {
+  const user = auth.currentUser;
+  if (!user) throw new Error("Faça login antes de excluir o jogo.");
+
+  const idToken = await user.getIdToken();
+  const response = await fetch(`/api/game-assets?slug=${encodeURIComponent(slug)}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${idToken}` },
+  });
+
+  if (!response.ok) {
+    const result = (await response.json().catch(() => ({}))) as { error?: string };
+    throw new Error(result.error ?? "Falha ao excluir os arquivos do jogo.");
+  }
+}
+
 export async function deleteGame(slug: string): Promise<void> {
+  await deleteGameAssets(slug);
   await deleteDoc(doc(db, "games", slug));
 }
 
 async function uploadGameFile(slug: string, file: File): Promise<string> {
-  const maxBytes = 100 * 1024 * 1024;
-
-  if (file.size > maxBytes) {
-    throw new Error("Arquivo muito grande. O limite atual do GameHub é 100 MB.");
+  if (file.size > MAX_GAME_FILE_BYTES) {
+    throw new Error("Arquivo muito grande. O limite do GameHub é 50 MB por arquivo.");
   }
 
-  const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
-  const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
-
-  if (!cloudName || !uploadPreset) {
-    throw new Error("Configure VITE_CLOUDINARY_CLOUD_NAME e VITE_CLOUDINARY_UPLOAD_PRESET.");
+  const user = auth.currentUser;
+  if (!user) {
+    throw new Error("Faça login antes de enviar o jogo.");
   }
 
-  const body = new FormData();
-  body.append("file", file);
-  body.append("upload_preset", uploadPreset);
-  body.append("folder", `gamehub/games/${slug}`);
-  body.append("public_id", file.name);
-
+  const idToken = await user.getIdToken();
+  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
   const response = await fetch(
-    `https://api.cloudinary.com/v1_1/${cloudName}/raw/upload`,
+    `/api/game-upload?slug=${encodeURIComponent(slug)}&kind=game&filename=${encodeURIComponent(safeName)}`,
     {
-      method: "POST",
-      body,
+      method: "PUT",
+      headers: {
+        Authorization: `Bearer ${idToken}`,
+        "Content-Type": file.type || "application/octet-stream",
+        "Content-Length": String(file.size),
+      },
+      body: file,
     },
   );
 
-  const result = await response.json();
-
-  if (!response.ok || !result.secure_url) {
-    throw new Error(result.error?.message ?? "Falha no upload do jogo para o Cloudinary.");
+  const result = (await response.json().catch(() => ({}))) as { url?: string; error?: string };
+  if (!response.ok || !result.url) {
+    throw new Error(result.error ?? "Falha no upload do jogo.");
   }
 
-  return result.secure_url as string;
+  return result.url;
 }
 
 async function uploadImageAsset(
@@ -84,34 +98,36 @@ async function uploadImageAsset(
   kind: "cover" | "hero",
   file: File,
 ): Promise<string> {
-  const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
-  const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
-
-  if (!cloudName || !uploadPreset) {
-    throw new Error("Configure VITE_CLOUDINARY_CLOUD_NAME e VITE_CLOUDINARY_UPLOAD_PRESET.");
+  if (file.size > MAX_GAME_FILE_BYTES) {
+    throw new Error("Arquivo muito grande. O limite do GameHub é 50 MB por arquivo.");
   }
 
-  const body = new FormData();
-  body.append("file", file);
-  body.append("upload_preset", uploadPreset);
-  body.append("folder", `gamehub/games/${slug}`);
-  body.append("public_id", kind);
+  const user = auth.currentUser;
+  if (!user) {
+    throw new Error("Faça login antes de enviar arquivos.");
+  }
 
+  const idToken = await user.getIdToken();
+  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
   const response = await fetch(
-    `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`,
+    `/api/game-upload?slug=${encodeURIComponent(slug)}&kind=${kind}&filename=${encodeURIComponent(safeName)}`,
     {
-      method: "POST",
-      body,
+      method: "PUT",
+      headers: {
+        Authorization: `Bearer ${idToken}`,
+        "Content-Type": file.type || "application/octet-stream",
+        "Content-Length": String(file.size),
+      },
+      body: file,
     },
   );
 
-  const result = await response.json();
-
-  if (!response.ok || !result.secure_url) {
-    throw new Error(result.error?.message ?? "Falha no upload para o Cloudinary.");
+  const result = (await response.json().catch(() => ({}))) as { url?: string; error?: string };
+  if (!response.ok || !result.url) {
+    throw new Error(result.error ?? `Falha no upload de ${kind}.`);
   }
 
-  return result.secure_url as string;
+  return result.url;
 }
 
 export async function uploadGameAsset(

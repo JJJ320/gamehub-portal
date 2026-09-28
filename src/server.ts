@@ -8,12 +8,15 @@ type ServerEntry = {
 };
 
 type WorkerEnv = {
-  GAMEHUB_GAMES?: R2Bucket;
+  SUPABASE_SERVICE_ROLE_KEY?: string;
 };
 
 const FIREBASE_PROJECT_ID = "gamehub-portal";
 const FIREBASE_DATABASE_ID = "gamehub-portal";
 const FIREBASE_API_KEY = "AIzaSyA0Uy-AkpUlXFpXKar4nmdB9t7bFm__kxA";
+const SUPABASE_URL = "https://zijhmkurzpdlwzvpumdd.supabase.co";
+const SUPABASE_BUCKET = "gamehub-games";
+const MAX_UPLOAD_BYTES = 50 * 1024 * 1024;
 
 let serverEntryPromise: Promise<ServerEntry> | undefined;
 
@@ -66,10 +69,14 @@ function sanitizeSegment(value: string): string {
     .slice(0, 180);
 }
 
-async function isGameOwner(idToken: string): Promise<boolean> {
-  const verifyUrl =
-    `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/${FIREBASE_DATABASE_ID}/documents/owners?key=${FIREBASE_API_KEY}`;
+function getBearerToken(request: Request): string {
+  const authorization = request.headers.get("Authorization");
+  return authorization?.startsWith("Bearer ")
+    ? authorization.slice("Bearer ".length)
+    : "";
+}
 
+async function isGameOwner(idToken: string): Promise<boolean> {
   const tokenInfo = await fetch("https://identitytoolkit.googleapis.com/v1/accounts:lookup", {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -84,7 +91,9 @@ async function isGameOwner(idToken: string): Promise<boolean> {
   const uid = tokenData.users?.[0]?.localId;
   if (!uid) return false;
 
-  const ownerUrl = `${verifyUrl}/${encodeURIComponent(uid)}`;
+  const ownerUrl =
+    `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/${FIREBASE_DATABASE_ID}/documents/owners/${encodeURIComponent(uid)}?key=${FIREBASE_API_KEY}`;
+
   const ownerResponse = await fetch(ownerUrl, {
     headers: { Authorization: `Bearer ${idToken}` },
   });
@@ -92,89 +101,178 @@ async function isGameOwner(idToken: string): Promise<boolean> {
   return ownerResponse.ok;
 }
 
+function getStoredFilename(kind: "cover" | "hero" | "game", filename: string): string {
+  if (kind === "cover") return "cover" + getExtension(filename);
+  if (kind === "hero") return "hero" + getExtension(filename);
+  return "game" + getExtension(filename);
+}
+
+function getExtension(filename: string): string {
+  const extension = filename.toLowerCase().split(".").pop() ?? "";
+  return /^[a-z0-9]{1,10}$/.test(extension) ? `.${extension}` : ".bin";
+}
+
+function publicSupabaseUrl(path: string): string {
+  const encodedPath = path.split("/").map(encodeURIComponent).join("/");
+  return `${SUPABASE_URL}/storage/v1/object/public/${SUPABASE_BUCKET}/${encodedPath}`;
+}
+
+async function uploadToSupabase(
+  request: Request,
+  slug: string,
+  kind: "cover" | "hero" | "game",
+  filename: string,
+  serviceRoleKey: string,
+): Promise<Response> {
+  if (!request.body) return json({ error: "Arquivo ausente." }, 400);
+
+  const contentLength = Number(request.headers.get("content-length") ?? "0");
+  if (contentLength > MAX_UPLOAD_BYTES) {
+    return json({ error: "Arquivo muito grande. O limite atual é 50 MB." }, 413);
+  }
+
+  const objectPath = `games/${slug}/${getStoredFilename(kind, filename)}`;
+  const storageUrl =
+    `${SUPABASE_URL}/storage/v1/object/${SUPABASE_BUCKET}/${objectPath
+      .split("/")
+      .map(encodeURIComponent)
+      .join("/")}`;
+
+  const uploadResponse = await fetch(storageUrl, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${serviceRoleKey}`,
+      apikey: serviceRoleKey,
+      "Content-Type": request.headers.get("content-type") || "application/octet-stream",
+      "Cache-Control": "public, max-age=31536000, immutable",
+      "x-upsert": "true",
+    },
+    body: request.body,
+  });
+
+  if (!uploadResponse.ok) {
+    const details = await uploadResponse.text();
+    console.error("Supabase upload failed:", details);
+    return json({ error: "Falha ao enviar o arquivo para o Supabase Storage." }, 502);
+  }
+
+  return json({ url: publicSupabaseUrl(objectPath), key: objectPath }, 201);
+}
+
+async function deleteSupabaseGameAssets(slug: string, serviceRoleKey: string): Promise<void> {
+  const listResponse = await fetch(
+    `${SUPABASE_URL}/storage/v1/object/list/${SUPABASE_BUCKET}`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${serviceRoleKey}`,
+        apikey: serviceRoleKey,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ prefix: `games/${slug}/`, limit: 100, offset: 0 }),
+    },
+  );
+
+  if (!listResponse.ok) {
+    throw new Error("Não foi possível listar os arquivos do jogo no Supabase.");
+  }
+
+  const objects = (await listResponse.json()) as Array<{ name?: string }>;
+  const paths = objects
+    .map((object) => object.name?.replace(/^\/+/, ""))
+    .filter((name): name is string => Boolean(name))
+    .map((name) => name.startsWith(`games/${slug}/`) ? name : `games/${slug}/${name}`);
+
+  if (!paths.length) return;
+
+  const deleteResponse = await fetch(
+    `${SUPABASE_URL}/storage/v1/object/${SUPABASE_BUCKET}`,
+    {
+      method: "DELETE",
+      headers: {
+        Authorization: `Bearer ${serviceRoleKey}`,
+        apikey: serviceRoleKey,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ prefixes: paths }),
+    },
+  );
+
+  if (!deleteResponse.ok) {
+    console.error("Supabase delete failed:", await deleteResponse.text());
+    throw new Error("Não foi possível excluir os arquivos do jogo no Supabase.");
+  }
+}
+
 async function handleGameAsset(request: Request, env: WorkerEnv): Promise<Response | null> {
   const url = new URL(request.url);
 
-  if (url.pathname.startsWith("/api/game-upload")) {
+  if (url.pathname === "/api/owner-check") {
+    if (request.method !== "GET") {
+      return new Response("Method Not Allowed", { status: 405, headers: { Allow: "GET" } });
+    }
+
+    const idToken = getBearerToken(request);
+    if (!idToken) return json({ owner: false }, 401);
+
+    return json({ owner: await isGameOwner(idToken) });
+  }
+
+  if (url.pathname === "/api/game-upload") {
     if (request.method !== "PUT") {
       return new Response("Method Not Allowed", { status: 405, headers: { Allow: "PUT" } });
     }
 
-    if (!env.GAMEHUB_GAMES) {
-      return json({ error: "R2 não está configurado no Worker." }, 503);
+    if (!env.SUPABASE_SERVICE_ROLE_KEY) {
+      return json({ error: "Supabase Storage não está configurado no Worker." }, 503);
     }
 
-    const authorization = request.headers.get("Authorization");
-    const idToken = authorization?.startsWith("Bearer ")
-      ? authorization.slice("Bearer ".length)
-      : "";
-
+    const idToken = getBearerToken(request);
     if (!idToken || !(await isGameOwner(idToken))) {
-      return json({ error: "Apenas contas de dono podem enviar jogos." }, 403);
-    }
-
-    if (!request.body) {
-      return json({ error: "Arquivo ausente." }, 400);
+      return json({ error: "Apenas contas de dono podem enviar arquivos." }, 403);
     }
 
     const slug = sanitizeSegment(url.searchParams.get("slug") ?? "");
-    const filename = sanitizeSegment(url.searchParams.get("filename") ?? "game.zip");
+    const kind = url.searchParams.get("kind");
+    const filename = sanitizeSegment(url.searchParams.get("filename") ?? "game.bin");
 
-    if (!slug || !filename) {
-      return json({ error: "Slug ou nome de arquivo inválido." }, 400);
+    if (!slug || !["cover", "hero", "game"].includes(kind ?? "")) {
+      return json({ error: "Slug ou tipo de arquivo inválido." }, 400);
     }
 
-    const contentLength = Number(request.headers.get("content-length") ?? "0");
-    const maxBytes = 100 * 1024 * 1024;
-    if (contentLength > maxBytes) {
-      return json({ error: "Arquivo muito grande. O limite atual é 100 MB." }, 413);
-    }
-
-    const key = `games/${slug}/${filename}`;
-    await env.GAMEHUB_GAMES.put(key, request.body, {
-      httpMetadata: {
-        contentType: request.headers.get("content-type") || "application/octet-stream",
-        contentDisposition: "inline",
-        cacheControl: "public, max-age=31536000, immutable",
-      },
-    });
-
-    return json({
-      url: `${url.origin}/game-assets/${encodeURIComponent(slug)}/${encodeURIComponent(filename)}`,
-      key,
-    }, 201);
+    return uploadToSupabase(
+      request,
+      slug,
+      kind as "cover" | "hero" | "game",
+      filename,
+      env.SUPABASE_SERVICE_ROLE_KEY,
+    );
   }
 
-  if (url.pathname.startsWith("/game-assets/")) {
-    if (request.method !== "GET" && request.method !== "HEAD") {
-      return new Response("Method Not Allowed", { status: 405, headers: { Allow: "GET, HEAD" } });
+  if (url.pathname === "/api/game-assets") {
+    if (request.method !== "DELETE") {
+      return new Response("Method Not Allowed", { status: 405, headers: { Allow: "DELETE" } });
     }
 
-    if (!env.GAMEHUB_GAMES) {
-      return new Response("R2 não está configurado no Worker.", { status: 503 });
+    if (!env.SUPABASE_SERVICE_ROLE_KEY) {
+      return json({ error: "Supabase Storage não está configurado no Worker." }, 503);
     }
 
-    const key = decodeURIComponent(url.pathname.slice("/game-assets/".length));
-    if (!key || key.includes("..")) {
-      return new Response("Arquivo inválido.", { status: 400 });
+    const idToken = getBearerToken(request);
+    if (!idToken || !(await isGameOwner(idToken))) {
+      return json({ error: "Apenas contas de dono podem excluir arquivos." }, 403);
     }
 
-    const object = await env.GAMEHUB_GAMES.get(key);
-    if (!object) {
-      return new Response("Arquivo não encontrado.", { status: 404 });
+    const slug = sanitizeSegment(url.searchParams.get("slug") ?? "");
+    if (!slug) return json({ error: "Slug inválido." }, 400);
+
+    try {
+      await deleteSupabaseGameAssets(slug, env.SUPABASE_SERVICE_ROLE_KEY);
+      return json({ ok: true });
+    } catch (error) {
+      console.error(error);
+      return json({ error: "Falha ao excluir os arquivos do jogo." }, 502);
     }
-
-    const headers = new Headers();
-    object.writeHttpMetadata(headers);
-    headers.set("etag", object.httpEtag);
-    headers.set("cache-control", "public, max-age=31536000, immutable");
-    headers.set("access-control-allow-origin", "*");
-
-    if (request.method === "HEAD") {
-      return new Response(null, { status: 200, headers });
-    }
-
-    return new Response(object.body, { status: 200, headers });
   }
 
   return null;

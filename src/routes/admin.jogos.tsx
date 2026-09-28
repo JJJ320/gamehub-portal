@@ -55,15 +55,58 @@ function AdminGames() {
   const [coverFile, setCoverFile] = useState<File | null>(null);
   const [heroFile, setHeroFile] = useState<File | null>(null);
   const [gameFile, setGameFile] = useState<File | null>(null);
+  const [ownerChecking, setOwnerChecking] = useState(true);
+  const [isOwner, setIsOwner] = useState(false);
 
   const reload = async () => setOwnerGames(await listOwnerGames());
 
   useEffect(() => {
-    if (!loading && !user) {
-      void navigate({ to: "/auth", search: { redirect: "/admin/jogos" }, replace: true });
-      return;
-    }
-    if (user) void reload().catch(() => setMessage("NÃ£o foi possÃ­vel carregar os jogos."));
+    let cancelled = false;
+
+    const verifyAccess = async () => {
+      if (loading) return;
+
+      if (!user) {
+        setOwnerChecking(false);
+        void navigate({ to: "/auth", search: { redirect: "/admin/jogos" }, replace: true });
+        return;
+      }
+
+      setOwnerChecking(true);
+
+      try {
+        const idToken = await user.getIdToken();
+        const response = await fetch("/api/owner-check", {
+          headers: { Authorization: `Bearer ${idToken}` },
+        });
+        const result = (await response.json().catch(() => ({}))) as { owner?: boolean };
+
+        if (cancelled) return;
+
+        if (!response.ok || !result.owner) {
+          setIsOwner(false);
+          void navigate({ to: "/", replace: true });
+          return;
+        }
+
+        setIsOwner(true);
+        await reload();
+      } catch (error) {
+        console.error("Erro ao verificar acesso de owner:", error);
+        if (!cancelled) {
+          setIsOwner(false);
+          void navigate({ to: "/", replace: true });
+        }
+      } finally {
+        if (!cancelled) setOwnerChecking(false);
+      }
+    };
+
+    void verifyAccess();
+
+    return () => {
+      cancelled = true;
+    };
   }, [loading, user, navigate]);
 
   const edit = (game: GameDocument) => {
@@ -142,7 +185,14 @@ function AdminGames() {
     }
   };
 
-  if (loading || !user) return <div className="min-h-screen"><SiteHeader /><main className="mx-auto max-w-4xl px-4 py-20">Carregando...</main></div>;
+  if (loading || ownerChecking || !user || !isOwner) {
+    return (
+      <div className="min-h-screen">
+        <SiteHeader />
+        <main className="mx-auto max-w-4xl px-4 py-20">Verificando acesso...</main>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen">
@@ -226,6 +276,3 @@ function AdminGames() {
 function Field({ label, value, onChange, placeholder }: { label: string; value: string; onChange: (value: string) => void; placeholder?: string }) {
   return <div><Label>{label}</Label><Input className="mt-1 bg-surface" value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} /></div>;
 }
-
-
-
