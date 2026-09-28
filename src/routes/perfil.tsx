@@ -1,4 +1,4 @@
-﻿import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Clock, Heart, Loader2, LogOut, Save, LockKeyhole } from "lucide-react";
 import { useEffect, useState } from "react";
 import { z } from "zod";
@@ -44,12 +44,37 @@ function ProfilePage() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [passwordSaving, setPasswordSaving] = useState(false);
   const [passwordStatus, setPasswordStatus] = useState<{ kind: "ok" | "error"; text: string } | null>(null);
+  const [ownerChecking, setOwnerChecking] = useState(true);
+  const [isOwner, setIsOwner] = useState(false);
 
   useEffect(() => {
     if (!user) return;
     void listUserGameData(user.uid).then(setUserGames).catch((error) => console.error("Falha ao carregar atividade dos jogos:", error));
   }, [user]);
 
+  useEffect(() => {
+    let active = true;
+    const checkOwner = async () => {
+      if (!user) {
+        if (active) { setIsOwner(false); setOwnerChecking(false); }
+        return;
+      }
+      setOwnerChecking(true);
+      try {
+        const idToken = await user.getIdToken();
+        const response = await fetch("/api/owner-check", { headers: { Authorization: "Bearer " + idToken } });
+        const result = await response.json();
+        if (active) setIsOwner(response.ok && result.owner === true);
+      } catch (error) {
+        console.error("Falha ao verificar acesso de owner:", error);
+        if (active) setIsOwner(false);
+      } finally {
+        if (active) setOwnerChecking(false);
+      }
+    };
+    void checkOwner();
+    return () => { active = false; };
+  }, [user]);
   useEffect(() => {
     if (!loading && !user) {
       navigate({ to: "/auth", search: { redirect: "/perfil" }, replace: true });
@@ -229,7 +254,7 @@ function ProfilePage() {
               <p className="truncate text-sm text-muted-foreground">{user.email ?? "Sem e-mail"}</p>
             </div>
           </div>
-          <Button variant="outline" asChild className="sm:ml-auto"><Link to="/admin/jogos">Gerenciar jogos</Link></Button>
+          {isOwner && !ownerChecking && <Button variant="outline" asChild className="sm:ml-auto"><Link to="/admin/jogos">Gerenciar jogos</Link></Button>}
           <Button variant="outline" onClick={handleSignOut} disabled={saving || passwordSaving}><LogOut className="size-4" />Sair da conta</Button>
         </header>
 

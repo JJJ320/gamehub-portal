@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as CategoriasRouteImport } from './routes/categorias'
+import { Route as DefinirSenhaRouteImport } from './routes/definir-senha'
 import { Route as JogosRouteImport } from './routes/jogos'
 import { Route as MaisJogadosRouteImport } from './routes/mais-jogados'
 import { Route as NovosRouteImport } from './routes/novos'
@@ -33,6 +34,11 @@ const AuthRoute = AuthRouteImport.update({
 const CategoriasRoute = CategoriasRouteImport.update({
   id: '/categorias',
   path: '/categorias',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DefinirSenhaRoute = DefinirSenhaRouteImport.update({
+  id: '/definir-senha',
+  path: '/definir-senha',
   getParentRoute: () => rootRouteImport,
 } as any)
 const JogosRoute = JogosRouteImport.update({
@@ -75,6 +81,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRouteWithChildren
   '/categorias': typeof CategoriasRoute
+  '/definir-senha': typeof DefinirSenhaRoute
   '/jogos': typeof JogosRoute
   '/mais-jogados': typeof MaisJogadosRoute
   '/novos': typeof NovosRoute
@@ -87,6 +94,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRouteWithChildren
   '/categorias': typeof CategoriasRoute
+  '/definir-senha': typeof DefinirSenhaRoute
   '/jogos': typeof JogosRoute
   '/mais-jogados': typeof MaisJogadosRoute
   '/novos': typeof NovosRoute
@@ -100,6 +108,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/auth': typeof AuthRouteWithChildren
   '/categorias': typeof CategoriasRoute
+  '/definir-senha': typeof DefinirSenhaRoute
   '/jogos': typeof JogosRoute
   '/mais-jogados': typeof MaisJogadosRoute
   '/novos': typeof NovosRoute
@@ -114,6 +123,7 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/categorias'
+    | '/definir-senha'
     | '/jogos'
     | '/mais-jogados'
     | '/novos'
@@ -126,6 +136,7 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/categorias'
+    | '/definir-senha'
     | '/jogos'
     | '/mais-jogados'
     | '/novos'
@@ -138,6 +149,7 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/categorias'
+    | '/definir-senha'
     | '/jogos'
     | '/mais-jogados'
     | '/novos'
@@ -151,6 +163,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthRoute: typeof AuthRouteWithChildren
   CategoriasRoute: typeof CategoriasRoute
+  DefinirSenhaRoute: typeof DefinirSenhaRoute
   JogosRoute: typeof JogosRoute
   MaisJogadosRoute: typeof MaisJogadosRoute
   NovosRoute: typeof NovosRoute
@@ -180,6 +193,13 @@ declare module '@tanstack/react-router' {
       path: '/categorias'
       fullPath: '/categorias'
       preLoaderRoute: typeof CategoriasRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/definir-senha': {
+      id: '/definir-senha'
+      path: '/definir-senha'
+      fullPath: '/definir-senha'
+      preLoaderRoute: typeof DefinirSenhaRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/jogos': {
@@ -248,6 +268,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthRoute: AuthRouteWithChildren,
   CategoriasRoute: CategoriasRoute,
+  DefinirSenhaRoute: DefinirSenhaRoute,
   JogosRoute: JogosRoute,
   MaisJogadosRoute: MaisJogadosRoute,
   NovosRoute: NovosRoute,
