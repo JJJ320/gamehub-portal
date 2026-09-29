@@ -63,7 +63,7 @@ function getBearerToken(request: Request): string {
 }
 
 async function isGameOwner(idToken: string): Promise<boolean> {
-  const tokenInfo = await fetch("https://identitytoolkit.googleapis.com/v1/accounts:lookup", {
+  const tokenInfo = await fetch("https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${FIREBASE_API_KEY}", {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ idToken }),
