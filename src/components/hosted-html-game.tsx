@@ -131,6 +131,18 @@ async function buildZipHtml(url: string): Promise<string> {
   };
 
 
+  // Rewrite assets inside JavaScript/CSS files before creating their blob URLs.
+  // This is required for games that call loadTexture("assets/player.png")
+  // from JavaScript rather than declaring the image in an HTML attribute.
+  for (const [path, file] of fileMap) {
+    if (!isTextPath(path) || path === entry) continue;
+    const original = await file.async("string");
+    const rewritten = rewriteText(original, path);
+    const previousUrl = assetUrls.get(path);
+    if (previousUrl?.startsWith("blob:")) URL.revokeObjectURL(previousUrl);
+    assetUrls.set(path, URL.createObjectURL(new Blob([rewritten], { type: guessMime(path) })));
+  }
+
   const htmlFile = fileMap.get(entry);
   if (!htmlFile) throw new Error("Arquivo HTML principal não encontrado.");
 
