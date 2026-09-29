@@ -229,11 +229,11 @@ function AdminGames() {
               <Label>Arquivo do jogo</Label>
               <Input
                 type="file"
-                accept={form.gameType === "zip" ? ".zip,application/zip" : ".html,.htm,text/html"}
+                accept=".zip,.html,.htm,application/zip,text/html"
                 onChange={(e) => setGameFile(e.target.files?.[0] ?? null)}
               />
               <p className="mt-1 text-xs text-muted-foreground">
-                HTML para jogos de arquivo único ou ZIP para jogos com JS, CSS, imagens e outros assets.
+                HTML para jogos de arquivo único ou ZIP para jogos com JS, CSS, imagens e outros assets. Para este Subway Surfers, envie o ZIP da pasta completa.
               </p>
             </div>
             <div><Label>Tags</Label><Input value={tagText} onChange={(e) => setTagText(e.target.value)} placeholder="Arcade, Original, Web" /></div>
