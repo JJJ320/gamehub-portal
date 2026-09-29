@@ -9,7 +9,7 @@ type WorkerEnv = {
 };
 
 const FIREBASE_PROJECT_ID = "gamehub-portal";
-const FIREBASE_DATABASE_ID = "(default)";
+const FIREBASE_DATABASE_ID = "gamehub-portal";
 const FIREBASE_API_KEY = "AIzaSyA0Uy-AkpUlXFpXKar4nmdB9t7bFm__kxA";
 const SUPABASE_URL = "https://zijhmkurzpdlwzvpumdd.supabase.co";
 const SUPABASE_BUCKET = "gamehub-games";
