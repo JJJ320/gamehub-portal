@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import JSZip from "jszip";
 
 type HostedHtmlGameProps = {
@@ -37,6 +37,18 @@ function resolveAsset(reference: string, fromFile: string): string | null {
   return normalizePath(clean.startsWith("/") ? clean.slice(1) : base + clean);
 }
 
+function isImagePath(path: string): boolean {
+  return /\.(png|jpe?g|gif|webp|svg|ico)$/i.test(path);
+}
+
+function isTextPath(path: string): boolean {
+  return /\.(html?|css|js|mjs|json)$/i.test(path);
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^$\{\}()|[\]\\]/g, "\\$&");
+}
+
 async function buildZipHtml(url: string): Promise<string> {
   const response = await fetch(url);
   if (!response.ok) throw new Error(`Falha ao baixar o pacote do jogo (${response.status}).`);
@@ -54,37 +66,91 @@ async function buildZipHtml(url: string): Promise<string> {
     htmlCandidates.find((path) => path.toLowerCase().endsWith("/game.html")) ??
     htmlCandidates[0];
 
-  if (!entry) throw new Error("O ZIP nÃ£o contÃ©m nenhum arquivo HTML.");
+  if (!entry) throw new Error("O ZIP não contém nenhum arquivo HTML.");
 
-  const blobUrls = new Map<string, string>();
+  /*
+   * srcdoc iframes have an opaque origin. Blob URLs created by the parent
+   * document can therefore taint a WebGL canvas when used as image sources.
+   * Images are converted to data URLs instead. Data URLs are safe for
+   * WebGL texture uploads and also work for games whose JS calls
+   * loadTexture("assets/foo.png") directly.
+   */
+  const assetUrls = new Map<string, string>();
+
   for (const [path, file] of fileMap) {
-    const data = await file.async("blob");
-    blobUrls.set(path, URL.createObjectURL(new Blob([data], { type: guessMime(path) })));
+    const data = await file.async("arraybuffer");
+    if (isImagePath(path)) {
+      const bytes = new Uint8Array(data);
+      let binary = "";
+      const chunkSize = 0x8000;
+      for (let i = 0; i < bytes.length; i += chunkSize) {
+        binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+      }
+      assetUrls.set(path, `data:${guessMime(path)};base64,${btoa(binary)}`);
+    } else {
+      assetUrls.set(path, URL.createObjectURL(new Blob([data], { type: guessMime(path) })));
+    }
   }
 
-  const htmlFile = fileMap.get(entry);
-  if (!htmlFile) throw new Error("Arquivo HTML principal nÃ£o encontrado.");
-  let html = await htmlFile.async("string");
-
-  const rewrite = (reference: string) => {
-    const resolved = resolveAsset(reference, entry);
-    return resolved && blobUrls.has(resolved) ? blobUrls.get(resolved)! : reference;
+  const rewriteReference = (reference: string, fromFile: string) => {
+    const resolved = resolveAsset(reference, fromFile);
+    return resolved && assetUrls.has(resolved) ? assetUrls.get(resolved)! : reference;
   };
+
+  /*
+   * Rewrite relative asset paths inside JavaScript/CSS/HTML files too.
+   * The original loader only rewrote HTML attributes, but this game loads
+   * its WebGL textures from JavaScript strings such as "assets/player.png".
+   */
+  const rewriteText = (text: string, fromFile: string) => {
+    let output = text;
+
+    for (const assetPath of fileMap.keys()) {
+      const assetUrl = assetUrls.get(assetPath);
+      if (!assetUrl) continue;
+
+      const basename = assetPath.split("/").pop() ?? assetPath;
+      const variants = [
+        assetPath,
+        `./${assetPath}`,
+        `/${assetPath}`,
+        basename,
+        `./${basename}`,
+      ];
+
+      for (const reference of variants) {
+        output = output.split(`"${reference}"`).join(`"${assetUrl}"`);
+        output = output.split(`'${reference}'`).join(`'${assetUrl}'`);
+        output = output.split(`url(${reference})`).join(`url(${assetUrl})`);
+        output = output.split(`url("${reference}")`).join(`url("${assetUrl}")`);
+        output = output.split(`url('${reference}')`).join(`url('${assetUrl}')`);
+      }
+    }
+
+    return output;
+  };
+
+
+  const htmlFile = fileMap.get(entry);
+  if (!htmlFile) throw new Error("Arquivo HTML principal não encontrado.");
+
+  let html = await htmlFile.async("string");
+  html = rewriteText(html, entry);
 
   html = html.replace(
     /(<(?:script|img|audio|video|source|iframe|embed|object)[^>]+(?:src|data)=["'])([^"']+)(["'])/gi,
-    (_match, prefix, reference, suffix) => `${prefix}${rewrite(reference)}${suffix}`,
+    (_match, prefix, reference, suffix) => `${prefix}${rewriteReference(reference, entry)}${suffix}`,
   );
   html = html.replace(
     /(<link[^>]+href=["'])([^"']+)(["'])/gi,
-    (_match, prefix, reference, suffix) => `${prefix}${rewrite(reference)}${suffix}`,
+    (_match, prefix, reference, suffix) => `${prefix}${rewriteReference(reference, entry)}${suffix}`,
   );
   html = html.replace(
     /(<[^>]+style=["'][^"']*)(["'])/gi,
     (match, prefix, suffix) => {
       const rewritten = prefix.replace(
         /url\((['"]?)([^'")]+)\1\)/gi,
-        (_urlMatch: string, quote: string, reference: string) => `url(${quote}${rewrite(reference)}${quote})`,
+        (_urlMatch: string, quote: string, reference: string) => `url(${quote}${rewriteReference(reference, entry)}${quote})`,
       );
       return rewritten + suffix;
     },
@@ -118,7 +184,7 @@ export function HostedHtmlGame({ url, type, title }: HostedHtmlGameProps) {
         }
         if (!cancelled) setSrcDoc(html);
       } catch (loadError) {
-        if (!cancelled) setError(loadError instanceof Error ? loadError.message : "NÃ£o foi possÃ­vel carregar o jogo.");
+        if (!cancelled) setError(loadError instanceof Error ? loadError.message : "Não foi possível carregar o jogo.");
       }
     };
 
@@ -131,7 +197,7 @@ export function HostedHtmlGame({ url, type, title }: HostedHtmlGameProps) {
   if (error) {
     return (
       <div className="grid size-full place-items-center p-6 text-center text-sm text-muted-foreground">
-        <div><p className="font-semibold text-foreground">NÃ£o foi possÃ­vel carregar o jogo.</p><p className="mt-2">{error}</p></div>
+        <div><p className="font-semibold text-foreground">Não foi possível carregar o jogo.</p><p className="mt-2">{error}</p></div>
       </div>
     );
   }
