@@ -33,7 +33,7 @@ export const Route = createFileRoute("/auth")({
 
   head: () => ({
     meta: [
-      { title: "Entrar ou criar conta â€” GameHub" },
+      { title: "Entrar ou criar conta — GameHub" },
       {
         name: "description",
         content:
@@ -41,7 +41,7 @@ export const Route = createFileRoute("/auth")({
       },
       {
         property: "og:title",
-        content: "Entrar ou criar conta â€” GameHub",
+        content: "Entrar ou criar conta — GameHub",
       },
       {
         property: "og:description",

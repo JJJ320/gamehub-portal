@@ -19,7 +19,7 @@ export const Route = createFileRoute("/perfil")({
   ssr: false,
   head: () => ({
     meta: [
-      { title: "Meu perfil â€” GameHub" },
+      { title: "Meu perfil — GameHub" },
       { name: "description", content: "Gerencie seu perfil GameHub." },
     ],
   }),
@@ -354,7 +354,7 @@ function UserGamesCard({ icon, title, items, games, emptyText }: { icon: React.R
                 <img src={game.cover} alt="" className="size-12 rounded-lg object-cover" />
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-bold">{game.title}</p>
-                  <p className="text-xs text-muted-foreground">{item.playTimeMs > 0 ? `${playTime} de jogo` : "Ainda sem tempo registrado"}{item.rating ? ` Â· ${item.rating}/5` : ""}</p>
+                  <p className="text-xs text-muted-foreground">{item.playTimeMs > 0 ? `${playTime} de jogo` : "Ainda sem tempo registrado"}{item.rating ? ` · ${item.rating}/5` : ""}</p>
                 </div>
               </Link>
             );
@@ -374,4 +374,3 @@ function formatPlayTime(milliseconds: number): string {
   if (hours > 0) return `${hours}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}.${String(ms).padStart(3, "0")}`;
   return `${minutes}:${String(seconds).padStart(2, "0")}.${String(ms).padStart(3, "0")}`;
 }
-

@@ -123,7 +123,7 @@ function AdminGames() {
     setMessage("");
 
     if (!form.title.trim() || !form.slug.trim()) {
-      setMessage("TÃ­tulo e slug sÃ£o obrigatÃ³rios.");
+      setMessage("Título e slug são obrigatórios.");
       return;
     }
 
@@ -157,10 +157,10 @@ function AdminGames() {
     try {
       await deleteGame(slug);
       await reload();
-      setMessage("Jogo excluÃ­do.");
+      setMessage("Jogo excluído.");
     } catch (error) {
       console.error(error);
-      setMessage("NÃ£o foi possÃ­vel excluir.");
+      setMessage("Não foi possível excluir.");
     }
   };
 
@@ -176,10 +176,10 @@ function AdminGames() {
         });
       }
       await reload();
-      setMessage("CatÃ¡logo inicial importado para o Firestore.");
+      setMessage("Catálogo inicial importado para o Firestore.");
     } catch (error) {
       console.error(error);
-      setMessage("ImportaÃ§Ã£o bloqueada. Cadastre seu UID em owners no Firestore.");
+      setMessage("Importação bloqueada. Cadastre seu UID em owners no Firestore.");
     } finally {
       setBusy(false);
     }
@@ -202,23 +202,23 @@ function AdminGames() {
           <div>
             <Link to="/" className="text-xs text-muted-foreground hover:text-primary">InÃ­cio</Link>
             <h1 className="mt-2 font-display text-3xl font-extrabold uppercase">Gerenciar jogos</h1>
-            <p className="mt-1 text-sm text-muted-foreground">CatÃ¡logo modular do GameHub â€” Firebase Firestore + Storage.</p>
+            <p className="mt-1 text-sm text-muted-foreground">Catálogo modular do GameHub — Firebase Firestore + Storage.</p>
           </div>
-          <Button variant="outline" onClick={importLegacy} disabled={busy}><Upload className="size-4" /> Importar catÃ¡logo atual</Button>
+          <Button variant="outline" onClick={importLegacy} disabled={busy}><Upload className="size-4" /> Importar catálogo atual</Button>
         </div>
 
         <form onSubmit={save} className="mt-6 grid gap-5 rounded-2xl border border-border bg-card p-5 shadow-card sm:p-6">
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="TÃ­tulo" value={form.title} onChange={(v) => setForm({ ...form, title: v })} />
+            <Field label="Título" value={form.title} onChange={(v) => setForm({ ...form, title: v })} />
             <Field label="Slug" value={form.slug} onChange={(v) => setForm({ ...form, slug: v })} placeholder="flappy-pombo" />
-            <Field label="GÃªnero" value={form.genre} onChange={(v) => setForm({ ...form, genre: v })} />
+            <Field label="Gênero" value={form.genre} onChange={(v) => setForm({ ...form, genre: v })} />
             <Field label="Desenvolvedor" value={form.developer} onChange={(v) => setForm({ ...form, developer: v })} />
-            <Field label="DescriÃ§Ã£o curta" value={form.shortDescription} onChange={(v) => setForm({ ...form, shortDescription: v })} />
-            <Field label="URL do jogo (se jÃ¡ hospedado)" value={form.gameUrl ?? ""} onChange={(v) => setForm({ ...form, gameUrl: v, gameType: "url" })} />
+            <Field label="Descrição curta" value={form.shortDescription} onChange={(v) => setForm({ ...form, shortDescription: v })} />
+            <Field label="URL do jogo (se já hospedado)" value={form.gameUrl ?? ""} onChange={(v) => setForm({ ...form, gameUrl: v, gameType: "url" })} />
           </div>
 
           <div>
-            <Label>DescriÃ§Ã£o</Label>
+            <Label>Descrição</Label>
             <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className="mt-1 min-h-28 w-full rounded-lg border border-border bg-surface p-3 text-sm outline-none focus:border-primary" />
           </div>
 
@@ -260,7 +260,7 @@ function AdminGames() {
           {ownerGames.map((game) => (
             <div key={game.slug} className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-card p-3">
               <img src={game.cover} alt="" className="size-14 rounded-lg object-cover bg-surface" />
-              <div className="min-w-0 flex-1"><p className="font-semibold">{game.title}</p><p className="text-xs text-muted-foreground">{game.slug} Â· {game.published ? "publicado" : "rascunho"}</p></div>
+              <div className="min-w-0 flex-1"><p className="font-semibold">{game.title}</p><p className="text-xs text-muted-foreground">{game.slug} · {game.published ? "publicado" : "rascunho"}</p></div>
               {game.slug === "flappy-pombo" && <Check className="size-4 text-primary" />}
               <Button size="sm" variant="outline" onClick={() => edit(game)}>Editar</Button>
               <Button size="sm" variant="outline" onClick={() => void remove(game.slug)}><Trash2 className="size-4" /></Button>

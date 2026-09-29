@@ -114,7 +114,7 @@ async function uploadToSupabase(
 
   const contentLength = Number(request.headers.get("content-length") ?? "0");
   if (contentLength > MAX_UPLOAD_BYTES) {
-    return json({ error: "Arquivo muito grande. O limite atual ÃƒÂ© 50 MB." }, 413);
+    return json({ error: "Arquivo muito grande. O limite atual é 50 MB." }, 413);
   }
 
   const objectPath = `games/${slug}/${getStoredFilename(kind, filename)}`;
@@ -160,7 +160,7 @@ async function deleteSupabaseGameAssets(slug: string, serviceRoleKey: string): P
   );
 
   if (!listResponse.ok) {
-    throw new Error("NÃƒÂ£o foi possÃƒÂ­vel listar os arquivos do jogo no Supabase.");
+    throw new Error("Não foi possível listar os arquivos do jogo no Supabase.");
   }
 
   const objects = (await listResponse.json()) as Array<{ name?: string }>;
@@ -186,7 +186,7 @@ async function deleteSupabaseGameAssets(slug: string, serviceRoleKey: string): P
 
   if (!deleteResponse.ok) {
     console.error("Supabase delete failed:", await deleteResponse.text());
-    throw new Error("NÃƒÂ£o foi possÃƒÂ­vel excluir os arquivos do jogo no Supabase.");
+    throw new Error("Não foi possível excluir os arquivos do jogo no Supabase.");
   }
 }
 
@@ -210,7 +210,7 @@ async function handleGameAsset(request: Request, env: WorkerEnv): Promise<Respon
     }
 
     if (!env.SUPABASE_SERVICE_ROLE_KEY) {
-      return json({ error: "Supabase Storage nÃƒÂ£o estÃƒÂ¡ configurado no Worker." }, 503);
+      return json({ error: "Supabase Storage não está configurado no Worker." }, 503);
     }
 
     const idToken = getBearerToken(request);
@@ -223,7 +223,7 @@ async function handleGameAsset(request: Request, env: WorkerEnv): Promise<Respon
     const filename = sanitizeSegment(url.searchParams.get("filename") ?? "game.bin");
 
     if (!slug || !["cover", "hero", "game"].includes(kind ?? "")) {
-      return json({ error: "Slug ou tipo de arquivo invÃƒÂ¡lido." }, 400);
+      return json({ error: "Slug inválido." }, 400);
     }
 
     return uploadToSupabase(
@@ -241,7 +241,7 @@ async function handleGameAsset(request: Request, env: WorkerEnv): Promise<Respon
     }
 
     if (!env.SUPABASE_SERVICE_ROLE_KEY) {
-      return json({ error: "Supabase Storage nÃƒÂ£o estÃƒÂ¡ configurado no Worker." }, 503);
+      return json({ error: "Supabase Storage não está configurado no Worker." }, 503);
     }
 
     const idToken = getBearerToken(request);
@@ -250,7 +250,7 @@ async function handleGameAsset(request: Request, env: WorkerEnv): Promise<Respon
     }
 
     const slug = sanitizeSegment(url.searchParams.get("slug") ?? "");
-    if (!slug) return json({ error: "Slug invÃƒÂ¡lido." }, 400);
+    if (!slug) return json({ error: "Slug inválido." }, 400);
 
     try {
       await deleteSupabaseGameAssets(slug, env.SUPABASE_SERVICE_ROLE_KEY);

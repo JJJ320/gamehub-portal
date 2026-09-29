@@ -126,7 +126,7 @@ export function HostedHtmlGame({ url, type, title }: HostedHtmlGameProps) {
     return () => { cancelled = true; };
   }, [url, type]);
 
-  const frameTitle = useMemo(() => `${title} â€” GameHub`, [title]);
+  const frameTitle = useMemo(() => `${title} — GameHub`, [title]);
 
   if (error) {
     return (

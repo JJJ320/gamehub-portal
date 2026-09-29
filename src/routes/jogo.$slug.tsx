@@ -215,7 +215,7 @@ function GameDetailPage() {
         categories.find((category) => category.slug === categorySlug)?.name,
     )
     .filter(Boolean)
-    .join(" Â· ");
+    .join(" · ");
 
   const related = games
     .filter(
@@ -263,7 +263,7 @@ function GameDetailPage() {
               </h1>
 
               <p className="mt-2 text-sm text-muted-foreground">
-                {game.genre} Â· {categoryNames}
+                {game.genre} · {categoryNames}
               </p>
 
               <div className="mt-4 flex flex-wrap gap-2">
