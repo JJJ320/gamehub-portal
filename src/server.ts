@@ -1,11 +1,8 @@
-import "./lib/error-capture";
+﻿import "./lib/error-capture";
 
 import { consumeLastCapturedError } from "./lib/error-capture";
 import { renderErrorPage } from "./lib/error-page";
-
-type ServerEntry = {
-  fetch: (request: Request, env: unknown, ctx: unknown) => Promise<Response> | Response;
-};
+import handler from "@tanstack/react-start/server-entry";
 
 type WorkerEnv = {
   SUPABASE_SERVICE_ROLE_KEY?: string;
@@ -17,17 +14,6 @@ const FIREBASE_API_KEY = "AIzaSyA0Uy-AkpUlXFpXKar4nmdB9t7bFm__kxA";
 const SUPABASE_URL = "https://zijhmkurzpdlwzvpumdd.supabase.co";
 const SUPABASE_BUCKET = "gamehub-games";
 const MAX_UPLOAD_BYTES = 50 * 1024 * 1024;
-
-let serverEntryPromise: Promise<ServerEntry> | undefined;
-
-async function getServerEntry(): Promise<ServerEntry> {
-  if (!serverEntryPromise) {
-    serverEntryPromise = import("../.output/server/index.mjs").then(
-      (m) => (m.default ?? m) as ServerEntry,
-    );
-  }
-  return serverEntryPromise;
-}
 
 async function normalizeCatastrophicSsrResponse(response: Response): Promise<Response> {
   if (response.status < 500) return response;
@@ -128,7 +114,7 @@ async function uploadToSupabase(
 
   const contentLength = Number(request.headers.get("content-length") ?? "0");
   if (contentLength > MAX_UPLOAD_BYTES) {
-    return json({ error: "Arquivo muito grande. O limite atual Ã© 50 MB." }, 413);
+    return json({ error: "Arquivo muito grande. O limite atual ÃƒÂ© 50 MB." }, 413);
   }
 
   const objectPath = `games/${slug}/${getStoredFilename(kind, filename)}`;
@@ -174,7 +160,7 @@ async function deleteSupabaseGameAssets(slug: string, serviceRoleKey: string): P
   );
 
   if (!listResponse.ok) {
-    throw new Error("NÃ£o foi possÃ­vel listar os arquivos do jogo no Supabase.");
+    throw new Error("NÃƒÂ£o foi possÃƒÂ­vel listar os arquivos do jogo no Supabase.");
   }
 
   const objects = (await listResponse.json()) as Array<{ name?: string }>;
@@ -200,7 +186,7 @@ async function deleteSupabaseGameAssets(slug: string, serviceRoleKey: string): P
 
   if (!deleteResponse.ok) {
     console.error("Supabase delete failed:", await deleteResponse.text());
-    throw new Error("NÃ£o foi possÃ­vel excluir os arquivos do jogo no Supabase.");
+    throw new Error("NÃƒÂ£o foi possÃƒÂ­vel excluir os arquivos do jogo no Supabase.");
   }
 }
 
@@ -224,7 +210,7 @@ async function handleGameAsset(request: Request, env: WorkerEnv): Promise<Respon
     }
 
     if (!env.SUPABASE_SERVICE_ROLE_KEY) {
-      return json({ error: "Supabase Storage nÃ£o estÃ¡ configurado no Worker." }, 503);
+      return json({ error: "Supabase Storage nÃƒÂ£o estÃƒÂ¡ configurado no Worker." }, 503);
     }
 
     const idToken = getBearerToken(request);
@@ -237,7 +223,7 @@ async function handleGameAsset(request: Request, env: WorkerEnv): Promise<Respon
     const filename = sanitizeSegment(url.searchParams.get("filename") ?? "game.bin");
 
     if (!slug || !["cover", "hero", "game"].includes(kind ?? "")) {
-      return json({ error: "Slug ou tipo de arquivo invÃ¡lido." }, 400);
+      return json({ error: "Slug ou tipo de arquivo invÃƒÂ¡lido." }, 400);
     }
 
     return uploadToSupabase(
@@ -255,7 +241,7 @@ async function handleGameAsset(request: Request, env: WorkerEnv): Promise<Respon
     }
 
     if (!env.SUPABASE_SERVICE_ROLE_KEY) {
-      return json({ error: "Supabase Storage nÃ£o estÃ¡ configurado no Worker." }, 503);
+      return json({ error: "Supabase Storage nÃƒÂ£o estÃƒÂ¡ configurado no Worker." }, 503);
     }
 
     const idToken = getBearerToken(request);
@@ -264,7 +250,7 @@ async function handleGameAsset(request: Request, env: WorkerEnv): Promise<Respon
     }
 
     const slug = sanitizeSegment(url.searchParams.get("slug") ?? "");
-    if (!slug) return json({ error: "Slug invÃ¡lido." }, 400);
+    if (!slug) return json({ error: "Slug invÃƒÂ¡lido." }, 400);
 
     try {
       await deleteSupabaseGameAssets(slug, env.SUPABASE_SERVICE_ROLE_KEY);
@@ -284,8 +270,7 @@ export default {
       const assetResponse = await handleGameAsset(request, env);
       if (assetResponse) return assetResponse;
 
-      const handler = await getServerEntry();
-      const response = await handler.fetch(request, env, ctx);
+      const response = await handler.fetch(request);
       return await normalizeCatastrophicSsrResponse(response);
     } catch (error) {
       console.error(error);
@@ -296,4 +281,3 @@ export default {
     }
   },
 };
-
