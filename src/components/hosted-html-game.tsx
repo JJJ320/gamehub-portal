@@ -52,6 +52,64 @@ function toDataUrl(bytes: ArrayBuffer, mime: string): string {
   return `data:${mime};base64,${btoa(binary)}`;
 }
 
+function optimizeSubwayIndex(text: string): string {
+  const start = text.indexOf("  loadJSONResource('./tracks.json'");
+  const firstBody = text.indexOf("  var speed =", start);
+  if (start === -1) return text;
+
+  const drawMarker = "  // Draw the scene repeatedly";
+  const end = text.indexOf(drawMarker, start);
+  if (end === -1) return text;
+
+  const replacement = `  // The original game loads all twelve model JSON files through deeply nested
+  // callbacks. That makes the GameHub data-URL loader wait for them one by one.
+  // Load the local resources in parallel instead.
+  var loadModelPromise = function (url) {
+    return new Promise(function (resolve, reject) {
+      loadJSONResource(url, function (err, result) {
+        if (err) reject(err);
+        else resolve(result);
+      });
+    });
+  };
+
+  Promise.all([
+    loadModelPromise('./tracks.json'),
+    loadModelPromise('./train.json'),
+    loadModelPromise('./player.json'),
+    loadModelPromise('./inspector.json'),
+    loadModelPromise('./coin.json'),
+    loadModelPromise('./roadbarrier.json'),
+    loadModelPromise('./jetpack.json'),
+    loadModelPromise('./boots.json'),
+    loadModelPromise('./cone.json'),
+    loadModelPromise('./barrel.json'),
+    loadModelPromise('./mystery.json'),
+    loadModelPromise('./dog.json')
+  ]).then(function (models) {
+    var modelTrack = models[0];
+    var modelTrain = models[1];
+    var modelPlayer = models[2];
+    var modelInspector = models[3];
+    var modelCoin = models[4];
+    var modelBarrier = models[5];
+    var modelJetpack = models[6];
+    var modelBoot = models[7];
+    var modelCone = models[8];
+    var modelBarrel = models[9];
+    var modelMystery = models[10];
+    var modelDog = models[11];
+
+`;
+
+  // Keep everything from the first JSON load through the callback chain's
+  // closing braces, but preserve the actual game initialization body.
+  const bodyStart = text.indexOf("                          textureDog =", start);
+  if (bodyStart === -1 || bodyStart > end) return text;
+
+  return text.slice(0, start) + replacement + text.slice(bodyStart, end) + "  });\n" + text.slice(end);
+}
+
 async function buildZipHtml(url: string): Promise<string> {
   const response = await fetch(url, { credentials: "omit" });
   if (!response.ok) throw new Error(`Falha ao baixar o pacote do jogo (${response.status}).`);
@@ -67,9 +125,16 @@ async function buildZipHtml(url: string): Promise<string> {
     ?? htmlCandidates[0];
   if (!entry) throw new Error("O ZIP não contém nenhum arquivo HTML.");
 
+  // Read the archive in parallel. The previous implementation awaited every
+  // file one by one, which was especially expensive for a WebGL package.
+  const entries = await Promise.all(
+    [...fileMap.entries()].map(async ([path, file]) => [path, await file.async("arraybuffer")] as const),
+  );
+
+  const rawBytes = new Map<string, ArrayBuffer>(entries);
   const assetUrls = new Map<string, string>();
-  for (const [path, file] of fileMap) {
-    assetUrls.set(path, toDataUrl(await file.async("arraybuffer"), guessMime(path)));
+  for (const [path, bytes] of entries) {
+    assetUrls.set(path, toDataUrl(bytes, guessMime(path)));
   }
 
   const rewriteReference = (reference: string, fromFile: string): string => {
@@ -79,6 +144,10 @@ async function buildZipHtml(url: string): Promise<string> {
 
   const rewriteText = (text: string, fromFile: string): string => {
     let output = text;
+    if (fromFile.split("/").pop()?.toLowerCase() === "index.js") {
+      output = optimizeSubwayIndex(output);
+    }
+
     for (const assetPath of fileMap.keys()) {
       const assetUrl = assetUrls.get(assetPath);
       if (!assetUrl) continue;
@@ -94,17 +163,15 @@ async function buildZipHtml(url: string): Promise<string> {
     return output;
   };
 
-  // Inline resource loading must work from an opaque srcdoc origin. In
-  // particular, XHR cannot reliably read data: URLs and the old cache-buster
-  // appended by this game's util.js corrupts those URLs.
-  for (const [path, file] of fileMap) {
+  for (const [path] of fileMap) {
     if (!isTextPath(path) || path === entry) continue;
-    let original = await file.async("string");
+    let original = new TextDecoder().decode(rawBytes.get(path)!);
+
     if (path.split("/").pop()?.toLowerCase() === "util.js") {
       original = original.replace(
         /var loadTextResource\s*=\s*function\s*\(url,\s*callback\)\s*\{[\s\S]*?\n\};/,
         `var loadTextResource = function (url, callback) {
-  fetch(url).then(function (response) {
+  fetch(url, { cache: 'force-cache' }).then(function (response) {
     if (!response.ok) throw new Error('HTTP ' + response.status + ' on resource ' + url);
     return response.text();
   }).then(function (text) { callback(null, text); })
@@ -112,12 +179,25 @@ async function buildZipHtml(url: string): Promise<string> {
 };`,
       );
     }
-    assetUrls.set(path, toDataUrl(new TextEncoder().encode(rewriteText(original, path)).buffer, guessMime(path)));
+
+    const rewritten = rewriteText(original, path);
+    assetUrls.set(
+      path,
+      toDataUrl(new TextEncoder().encode(rewritten).buffer, guessMime(path)),
+    );
   }
 
   const htmlFile = fileMap.get(entry);
   if (!htmlFile) throw new Error("Arquivo HTML principal não encontrado.");
-  let html = rewriteText(await htmlFile.async("string"), entry);
+
+  let html = rewriteText(new TextDecoder().decode(rawBytes.get(entry)!), entry);
+
+  // The source archive references ../webgl.css, but that file is not included.
+  // Remove the dead request and give the canvas predictable full-size styling.
+  html = html.replace(
+    /<link\s+[^>]*href=["']\.\.\/webgl\.css["'][^>]*>/i,
+    '<style>html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#000}canvas{display:block;width:100%;height:100%;}</style>',
+  );
 
   html = html.replace(
     /(<(?:script|img|audio|video|source|iframe|embed|object)[^>]+(?:src|data)=["'])([^"']+)(["'])/gi,
@@ -134,6 +214,7 @@ async function buildZipHtml(url: string): Promise<string> {
       (_urlMatch: string, quote: string, reference: string) => `url(${quote}${rewriteReference(reference, entry)}${quote})`,
     ) + suffix,
   );
+
   return html;
 }
 
@@ -151,9 +232,12 @@ async function buildHtmlDocument(url: string): Promise<string> {
 export function HostedHtmlGame({ url, type, title }: HostedHtmlGameProps) {
   const [srcDoc, setSrcDoc] = useState("");
   const [error, setError] = useState("");
+
   useEffect(() => {
     let cancelled = false;
-    setSrcDoc(""); setError("");
+    setSrcDoc("");
+    setError("");
+
     const load = async () => {
       try {
         const html = type === "zip" ? await buildZipHtml(url) : await buildHtmlDocument(url);
@@ -162,11 +246,35 @@ export function HostedHtmlGame({ url, type, title }: HostedHtmlGameProps) {
         if (!cancelled) setError(loadError instanceof Error ? loadError.message : "Não foi possível carregar o jogo.");
       }
     };
+
     void load();
     return () => { cancelled = true; };
   }, [url, type]);
+
   const frameTitle = useMemo(() => `${title} — GameHub`, [title]);
-  if (error) return <div className="grid size-full place-items-center p-6 text-center text-sm text-muted-foreground"><div><p className="font-semibold text-foreground">Não foi possível carregar o jogo.</p><p className="mt-2">{error}</p></div></div>;
-  if (!srcDoc) return <div className="grid size-full place-items-center text-sm text-muted-foreground">Carregando jogo...</div>;
-  return <iframe title={frameTitle} srcDoc={srcDoc} className="size-full border-0 bg-black" allow="fullscreen; autoplay; gamepad" sandbox="allow-scripts allow-pointer-lock allow-forms allow-modals allow-popups" />;
+
+  if (error) {
+    return (
+      <div className="grid size-full place-items-center p-6 text-center text-sm text-muted-foreground">
+        <div>
+          <p className="font-semibold text-foreground">Não foi possível carregar o jogo.</p>
+          <p className="mt-2">{error}</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!srcDoc) {
+    return <div className="grid size-full place-items-center text-sm text-muted-foreground">Carregando jogo...</div>;
+  }
+
+  return (
+    <iframe
+      title={frameTitle}
+      srcDoc={srcDoc}
+      className="size-full border-0 bg-black"
+      allow="fullscreen; autoplay; gamepad"
+      sandbox="allow-scripts allow-pointer-lock allow-forms allow-modals allow-popups"
+    />
+  );
 }
