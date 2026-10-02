@@ -4,24 +4,56 @@ import { listPublishedGames, type GameDocument } from "@/lib/firestore-games";
 
 let catalogCache: GameDocument[] | null = null;
 
+const legacyFallback = legacyGames.map((game) => ({
+  ...game,
+  rating: 0,
+  plays: 0,
+  uniquePlayers: 0,
+  ratingSum: 0,
+  ratingCount: 0,
+}));
+
 export function useGames() {
-  const [games, setGames] = useState<GameDocument[]>(catalogCache ?? legacyGames);
+  const [games, setGames] = useState<GameDocument[]>(catalogCache ?? legacyFallback);
 
   useEffect(() => {
     let active = true;
+
     void listPublishedGames()
       .then((remote) => {
         if (!active) return;
-        catalogCache = remote.length > 0 ? remote : legacyGames;
+        catalogCache = remote.length > 0 ? remote : legacyFallback;
         setGames(catalogCache);
       })
       .catch((error) => {
         console.error("Falha ao carregar catálogo Firebase:", error);
-        if (active) setGames(legacyGames);
+        if (active) setGames(legacyFallback);
       });
+
+    const onPlayerCounted = (event: Event) => {
+      const detail = (event as CustomEvent<{ slug?: string }>).detail;
+      if (!detail?.slug) return;
+
+      setGames((current) => {
+        const next = current.map((game) =>
+          game.slug === detail.slug
+            ? {
+                ...game,
+                plays: game.plays + 1,
+                uniquePlayers: (game.uniquePlayers ?? game.plays) + 1,
+              }
+            : game,
+        );
+        catalogCache = next;
+        return next;
+      });
+    };
+
+    window.addEventListener("gamehub:player-counted", onPlayerCounted);
 
     return () => {
       active = false;
+      window.removeEventListener("gamehub:player-counted", onPlayerCounted);
     };
   }, []);
 
@@ -33,13 +65,22 @@ export function useGame(slug: string) {
   return games.find((game) => game.slug === slug) ?? null;
 }
 
-export function searchCatalog(games: GameDocument[], query: string, category?: string) {
+export function searchCatalog(
+  games: GameDocument[],
+  query: string,
+  category?: string,
+) {
   const q = query.trim().toLowerCase();
+
   return games.filter((game) => {
     const categoryMatch =
-      !category || category === "all" || game.categories.includes(category as Game["categories"][number]);
+      !category ||
+      category === "all" ||
+      game.categories.includes(category as Game["categories"][number]);
+
     if (!categoryMatch) return false;
     if (!q) return true;
+
     return (
       game.title.toLowerCase().includes(q) ||
       game.genre.toLowerCase().includes(q) ||

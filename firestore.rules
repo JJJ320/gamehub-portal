@@ -2,27 +2,78 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Cada usuário só pode acessar e editar o próprio perfil.
+    function isOwner() {
+      return request.auth != null
+        && exists(/databases/$(database)/documents/owners/$(request.auth.uid));
+    }
+
     match /profiles/{userId} {
       allow read, write: if request.auth != null
         && request.auth.uid == userId;
     }
 
-    // Catálogo público de jogos.
-    // A escrita fica reservada ao usuário cujo UID estiver
-    // cadastrado na coleção privada /owners.
     match /games/{gameId} {
-      allow read: if resource.data.published == true
+      allow read: if resource.data.published == true || isOwner();
+
+      allow create, delete: if isOwner();
+
+      allow update: if isOwner()
         || (
           request.auth != null
-          && exists(/databases/$(database)/documents/owners/$(request.auth.uid))
+          && request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly([
+              "plays",
+              "uniquePlayers",
+              "metricsInitialized",
+              "rating",
+              "ratingSum",
+              "ratingCount"
+            ])
+          && (
+            (
+              resource.data.metricsInitialized != true
+              && request.resource.data.metricsInitialized == true
+              && request.resource.data.plays == 1
+              && request.resource.data.uniquePlayers == 1
+              && getAfter(/databases/$(database)/documents/userGames/$(request.auth.uid)/games/$(gameId)).data.hasPlayed == true
+            )
+            ||
+            (
+              resource.data.metricsInitialized == true
+              && request.resource.data.plays == resource.data.plays + 1
+              && request.resource.data.uniquePlayers == resource.data.uniquePlayers + 1
+              && (!exists(/databases/$(database)/documents/userGames/$(request.auth.uid)/games/$(gameId))
+                || get(/databases/$(database)/documents/userGames/$(request.auth.uid)/games/$(gameId)).data.hasPlayed != true)
+              && getAfter(/databases/$(database)/documents/userGames/$(request.auth.uid)/games/$(gameId)).data.hasPlayed == true
+            )
+            ||
+            (
+              request.resource.data.plays == resource.data.plays
+              && request.resource.data.uniquePlayers == resource.data.uniquePlayers
+              && request.resource.data.metricsInitialized == true
+              && getAfter(/databases/$(database)/documents/gameRatings/$(gameId)/ratings/$(request.auth.uid)).data.userId == request.auth.uid
+              && getAfter(/databases/$(database)/documents/gameRatings/$(gameId)/ratings/$(request.auth.uid)).data.gameSlug == gameId
+              && getAfter(/databases/$(database)/documents/gameRatings/$(gameId)/ratings/$(request.auth.uid)).data.rating >= 1
+              && getAfter(/databases/$(database)/documents/gameRatings/$(gameId)/ratings/$(request.auth.uid)).data.rating <= 5
+            )
+          )
         );
-
-      allow create, update, delete: if request.auth != null
-        && exists(/databases/$(database)/documents/owners/$(request.auth.uid));
     }
 
-    // Favoritos: cada usuário só pode acessar seus próprios registros.
+    match /gameRatings/{gameId}/ratings/{userId} {
+      allow read: if true;
+
+      allow create, update: if request.auth != null
+        && request.auth.uid == userId
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.gameSlug == gameId
+        && request.resource.data.rating >= 1
+        && request.resource.data.rating <= 5;
+
+      allow delete: if request.auth != null
+        && request.auth.uid == userId;
+    }
+
     match /favorites/{favoriteId} {
       allow read, delete: if request.auth != null
         && resource.data.user_id == request.auth.uid;
@@ -35,14 +86,11 @@ service cloud.firestore {
         && request.resource.data.user_id == request.auth.uid;
     }
 
-    // Dados pessoais de uso dos jogos.
     match /userGames/{userId}/games/{gameId} {
       allow read, write: if request.auth != null
         && request.auth.uid == userId;
     }
 
-    // O próprio usuário autenticado pode consultar seu registro de owner.
-    // Ele não pode criar, editar ou excluir esse registro.
     match /owners/{userId} {
       allow read: if request.auth != null
         && request.auth.uid == userId;
