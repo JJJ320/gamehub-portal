@@ -1,7 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
 
-type Props = { url: string; title: string };
+type Props = {
+  url: string;
+  title: string;
+};
 
 declare global {
   interface Window {
@@ -15,8 +18,41 @@ declare global {
   }
 }
 
+let ruffleLoadPromise: Promise<void> | null = null;
+
+function loadRuffle(): Promise<void> {
+  if (window.RufflePlayer?.newest()) return Promise.resolve();
+  if (ruffleLoadPromise) return ruffleLoadPromise;
+
+  ruffleLoadPromise = new Promise<void>((resolve, reject) => {
+    const existing = document.querySelector<HTMLScriptElement>(
+      'script[data-gamehub-ruffle="true"]',
+    );
+
+    if (existing) {
+      existing.addEventListener("load", () => resolve(), { once: true });
+      existing.addEventListener(
+        "error",
+        () => reject(new Error("Falha ao carregar o Ruffle.")),
+        { once: true },
+      );
+      return;
+    }
+
+    const script = document.createElement("script");
+    script.src = "/ruffle/ruffle.js";
+    script.async = true;
+    script.dataset.gamehubRuffle = "true";
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error("Falha ao carregar o Ruffle."));
+    document.head.appendChild(script);
+  });
+
+  return ruffleLoadPromise;
+}
+
 export function RuffleFlashGame({ url, title }: Props) {
-  const containerRef = useRef<HTMLDivElement | null>(null);
+  const playerHostRef = useRef<HTMLDivElement | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
 
@@ -29,11 +65,9 @@ export function RuffleFlashGame({ url, title }: Props) {
         setError("");
         setLoading(true);
 
-        // @ruffle-rs/ruffle is the self-hosted web package. It registers
-        // the public API on window instead of exporting RufflePlayer as ESM.
-        await import("@ruffle-rs/ruffle/ruffle.js");
+        await loadRuffle();
 
-        if (disposed || !containerRef.current) return;
+        if (disposed || !playerHostRef.current) return;
 
         const source = window.RufflePlayer?.newest();
         if (!source) {
@@ -45,13 +79,17 @@ export function RuffleFlashGame({ url, title }: Props) {
         player.style.height = "100%";
         player.setAttribute("aria-label", title);
         player.setAttribute("allowfullscreen", "true");
-        containerRef.current.replaceChildren(player);
 
-        await player.load(url);
+        playerHostRef.current.replaceChildren(player);
+
+        await (player as HTMLElement & {
+          load(options: string | { url: string }): Promise<void>;
+        }).load(url);
 
         if (!disposed) setLoading(false);
       } catch (cause) {
         console.error("Falha ao iniciar o Ruffle:", cause);
+        player?.remove();
         if (!disposed) {
           setLoading(false);
           setError(
@@ -66,17 +104,21 @@ export function RuffleFlashGame({ url, title }: Props) {
     return () => {
       disposed = true;
       player?.remove();
+      if (playerHostRef.current) playerHostRef.current.replaceChildren();
     };
   }, [url, title]);
 
   return (
-    <div ref={containerRef} className="relative size-full bg-black">
+    <div className="relative size-full bg-black">
+      <div ref={playerHostRef} className="size-full" />
+
       {loading && !error && (
         <div className="pointer-events-none absolute inset-0 z-10 grid place-items-center gap-2 text-white/70">
           <Loader2 className="size-6 animate-spin" />
           <span className="text-xs">Carregando Flash...</span>
         </div>
       )}
+
       {error && (
         <div className="absolute inset-0 grid place-items-center p-6 text-center text-sm text-white">
           {error}
