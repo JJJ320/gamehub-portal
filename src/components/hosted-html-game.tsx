@@ -273,8 +273,8 @@ export function HostedHtmlGame({ url, type, title }: HostedHtmlGameProps) {
       title={frameTitle}
       srcDoc={srcDoc}
       className="size-full border-0 bg-black"
-      allow="fullscreen; autoplay; gamepad"
-      sandbox="allow-scripts allow-pointer-lock allow-forms allow-modals allow-popups"
+      allow="fullscreen; autoplay; gamepad; accelerometer; gyroscope; magnetometer"
+      sandbox="allow-scripts allow-same-origin allow-pointer-lock allow-forms allow-modals allow-popups"
     />
   );
 }
