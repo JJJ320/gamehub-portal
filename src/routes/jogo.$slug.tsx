@@ -1,4 +1,4 @@
-﻿import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   CalendarDays,
   Gamepad2,
@@ -15,6 +15,7 @@ import { useEffect, useRef, useState } from "react";
 import { GameCard } from "@/components/game-card";
 import { GamePlayer } from "@/components/game-player";
 import { HostedHtmlGame } from "@/components/hosted-html-game";
+import { RuffleFlashGame } from "@/components/ruffle-flash-game";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { Button } from "@/components/ui/button";
@@ -400,6 +401,8 @@ function GameDetailPage() {
                   <GamePlayer>
                     {PlayableGame ? (
                       <PlayableGame />
+                    ) : game.gameUrl && game.gameType === "flash" ? (
+                      <RuffleFlashGame url={game.gameUrl} title={game.title} />
                     ) : game.gameUrl && (game.gameType === "html" || game.gameType === "zip") ? (
                       <HostedHtmlGame
                         url={game.gameUrl}

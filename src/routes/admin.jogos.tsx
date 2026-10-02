@@ -1,4 +1,4 @@
-﻿import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Check, Loader2, Plus, Save, Trash2, Upload } from "lucide-react";
 import { useEffect, useState } from "react";
 
@@ -134,7 +134,7 @@ function AdminGames() {
       if (heroFile) next.hero = await uploadGameAsset(next.slug, "hero", heroFile);
       if (gameFile) {
         const extension = gameFile.name.toLowerCase().split(".").pop();
-        next.gameType = extension === "zip" ? "zip" : "html";
+        next.gameType = extension === "zip" ? "zip" : extension === "swf" ? "flash" : "html";
         next.gameUrl = await uploadGameAsset(next.slug, "game", gameFile);
       }
       next.tags = tagText.split(",").map((tag) => tag.trim()).filter(Boolean);
@@ -229,11 +229,11 @@ function AdminGames() {
               <Label>Arquivo do jogo</Label>
               <Input
                 type="file"
-                accept=".zip,.html,.htm,application/zip,text/html"
+                accept=".zip,.html,.htm,.swf,application/zip,text/html,application/x-shockwave-flash"
                 onChange={(e) => setGameFile(e.target.files?.[0] ?? null)}
               />
               <p className="mt-1 text-xs text-muted-foreground">
-                HTML para jogos de arquivo único ou ZIP para jogos com JS, CSS, imagens e outros assets. Para este Subway Surfers, envie o ZIP da pasta completa.
+                HTML para jogos de arquivo único, ZIP para jogos com assets ou SWF para jogos em Flash (executados pelo Ruffle).
               </p>
             </div>
             <div><Label>Tags</Label><Input value={tagText} onChange={(e) => setTagText(e.target.value)} placeholder="Arcade, Original, Web" /></div>

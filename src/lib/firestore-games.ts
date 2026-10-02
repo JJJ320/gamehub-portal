@@ -2,7 +2,7 @@ import { collection, deleteDoc, doc, getDocs, query, serverTimestamp, setDoc, wh
 import { auth, db } from "@/firebase";
 import type { Game } from "@/data/games";
 
-export type GameType = "internal" | "url" | "html" | "zip";
+export type GameType = "internal" | "url" | "html" | "zip" | "flash";
 
 export type GameDocument = Game & {
   gameType?: GameType;
