@@ -5,6 +5,7 @@ import { z } from "zod";
 import { EmailAuthProvider, GoogleAuthProvider, linkWithCredential, reauthenticateWithPopup, updatePassword, updateProfile } from "firebase/auth";
 
 import { SiteFooter } from "@/components/site-footer";
+import { AchievementsCard } from "@/components/achievements-card";
 import { SiteHeader } from "@/components/site-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -329,6 +330,7 @@ function ProfilePage() {
           </div>
 
           <aside className="space-y-6">
+            <AchievementsCard items={userGames} />
             <UserGamesCard title="Favoritos" icon={<Heart className="size-5 text-primary" />} items={userGames.filter((item) => item.favorite)} games={games} emptyText="VocÃª ainda nÃ£o favoritou nenhum jogo." />
             <UserGamesCard title="HistÃ³rico" icon={<Clock className="size-5 text-primary" />} items={[...userGames].filter((item) => item.lastPlayedAt).sort((a, b) => (b.lastPlayedAt ?? "").localeCompare(a.lastPlayedAt ?? "")).slice(0, 6)} games={games} emptyText="Seu histÃ³rico aparecerÃ¡ aqui quando vocÃª jogar." />
           </aside>
