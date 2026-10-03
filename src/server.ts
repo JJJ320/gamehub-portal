@@ -272,16 +272,18 @@ export default {
       const assetResponse = await handleGameAsset(request, env);
       if (assetResponse) return assetResponse;
 
-      if (env.ASSETS && url.pathname.startsWith("/assets/")) {
+      if (env.ASSETS) {
         const staticResponse = await env.ASSETS.fetch(request);
         if (staticResponse.status !== 404) return staticResponse;
 
-        const filename = url.pathname.slice("/assets/".length);
-        if (filename && !filename.includes("/")) {
-          const fallbackUrl = new URL(request.url);
-          fallbackUrl.pathname = `/${filename}`;
-          const fallbackResponse = await env.ASSETS.fetch(new Request(fallbackUrl, request));
-          if (fallbackResponse.status !== 404) return fallbackResponse;
+        if (url.pathname.startsWith("/assets/")) {
+          const filename = url.pathname.slice("/assets/".length);
+          if (filename && !filename.includes("/")) {
+            const fallbackUrl = new URL(request.url);
+            fallbackUrl.pathname = `/${filename}`;
+            const fallbackResponse = await env.ASSETS.fetch(new Request(fallbackUrl, request));
+            if (fallbackResponse.status !== 404) return fallbackResponse;
+          }
         }
       }
 
