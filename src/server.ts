@@ -1,4 +1,4 @@
-﻿import "./lib/error-capture";
+import "./lib/error-capture";
 
 import { consumeLastCapturedError } from "./lib/error-capture";
 import { renderErrorPage } from "./lib/error-page";
@@ -269,6 +269,13 @@ export default {
   async fetch(request: Request, env: WorkerEnv, ctx: unknown) {
     try {
       const url = new URL(request.url);
+
+      if (url.pathname === "/googlee3f4f8287dc580ce.html") {
+        return new Response("google-site-verification: googlee3f4f8287dc580ce.html", {
+          headers: { "content-type": "text/html; charset=utf-8", "cache-control": "public, max-age=3600" },
+        });
+      }
+
       const assetResponse = await handleGameAsset(request, env);
       if (assetResponse) return assetResponse;
 
@@ -298,8 +305,3 @@ export default {
     }
   },
 };
-
-
-
-
-

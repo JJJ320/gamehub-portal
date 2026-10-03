@@ -9,7 +9,7 @@ import { RuffleFlashGame } from "@/components/ruffle-flash-game";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { Button } from "@/components/ui/button";
-import { categories, formatPlays } from "@/data/games";
+import { categories, formatPlays, getGameBySlug } from "@/data/games";
 import { getPlayableGame } from "@/games/registry";
 import { useAuth } from "@/hooks/use-auth";
 import { useGames } from "@/hooks/use-games";
@@ -24,6 +24,60 @@ import {
 
 export const Route = createFileRoute("/jogo/$slug")({
   ssr: false,
+  head: ({ params }) => {
+    const game = getGameBySlug(params.slug);
+    if (!game) {
+      return {
+        meta: [
+          { title: "Jogo não encontrado — GameHub" },
+          { name: "robots", content: "noindex, follow" },
+        ],
+      };
+    }
+
+    const title = `${game.title} — Jogar Online | GameHub`;
+    const description = game.shortDescription || game.description;
+    const url = `https://gamehub-portal.pages.dev/jogo/${game.slug}`;
+    const schema = {
+      "@context": "https://schema.org",
+      "@type": "VideoGame",
+      name: game.title,
+      description,
+      image: [game.cover, game.hero].filter(Boolean),
+      url,
+      genre: game.genre,
+      gamePlatform: game.platforms,
+      applicationCategory: "Game",
+      operatingSystem: game.platforms.join(", "),
+      inLanguage: "pt-BR",
+      author: { "@type": "Organization", name: game.developer || "GameHub" },
+    };
+
+    return {
+      meta: [
+        { title },
+        { name: "description", content: description },
+        { name: "robots", content: "index, follow, max-image-preview:large" },
+        { property: "og:title", content: title },
+        { property: "og:description", content: description },
+        { property: "og:type", content: "website" },
+        { property: "og:url", content: url },
+        { property: "og:image", content: game.hero ?? game.cover },
+        { property: "og:image:alt", content: game.title },
+        { name: "twitter:card", content: "summary_large_image" },
+        { name: "twitter:title", content: title },
+        { name: "twitter:description", content: description },
+        { name: "twitter:image", content: game.hero ?? game.cover },
+      ],
+      links: [
+        { rel: "canonical", href: url },
+        { rel: "alternate", hrefLang: "pt-BR", href: url },
+      ],
+      scripts: [
+        { type: "application/ld+json", children: JSON.stringify(schema) },
+      ],
+    };
+  },
   component: GameDetailPage,
 });
 
