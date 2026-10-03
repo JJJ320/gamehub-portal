@@ -10,6 +10,7 @@ import {
   type Timestamp,
 } from "firebase/firestore";
 import { db } from "@/firebase";
+import { updateLeaderboard } from "@/lib/leaderboard";
 
 export type UserGameData = {
   gameSlug: string;
@@ -117,6 +118,8 @@ export async function recordGamePlay(
       );
     }
   });
+
+  await updateLeaderboard(userId, milliseconds, countedAsNewPlayer);
 
   return { countedAsNewPlayer };
 }

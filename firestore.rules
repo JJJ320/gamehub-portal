@@ -91,6 +91,17 @@ service cloud.firestore {
         && request.auth.uid == userId;
     }
 
+    match /leaderboard/{userId} {
+      allow read: if true;
+      allow create, update: if request.auth != null
+        && request.auth.uid == userId
+        && request.resource.data.userId == userId
+        && request.resource.data.points >= 0
+        && request.resource.data.gamesPlayed >= 0
+        && request.resource.data.playTimeMs >= 0;
+      allow delete: if request.auth != null && request.auth.uid == userId;
+    }
+
     match /owners/{userId} {
       allow read: if request.auth != null
         && request.auth.uid == userId;

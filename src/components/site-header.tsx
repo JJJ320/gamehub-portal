@@ -3,6 +3,7 @@ import {
   LogOut,
   Menu,
   Search,
+  Trophy,
   User,
   UserCircle2,
   X,
@@ -27,6 +28,7 @@ const navItems = [
   { label: "Categorias", to: "/categorias" },
   { label: "Mais Jogados", to: "/mais-jogados" },
   { label: "Novos Jogos", to: "/novos" },
+  { label: "Ranking", to: "/ranking" },
 ] as const;
 
 export function SiteHeader() {
