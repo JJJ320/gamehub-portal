@@ -6,6 +6,7 @@ import handler from "@tanstack/react-start/server-entry";
 
 type WorkerEnv = {
   SUPABASE_SERVICE_ROLE_KEY?: string;
+  ASSETS?: { fetch(request: Request): Promise<Response> };
 };
 
 const FIREBASE_PROJECT_ID = "gamehub-portal";
@@ -267,8 +268,22 @@ async function handleGameAsset(request: Request, env: WorkerEnv): Promise<Respon
 export default {
   async fetch(request: Request, env: WorkerEnv, ctx: unknown) {
     try {
+      const url = new URL(request.url);
       const assetResponse = await handleGameAsset(request, env);
       if (assetResponse) return assetResponse;
+
+      if (env.ASSETS && url.pathname.startsWith("/assets/")) {
+        const staticResponse = await env.ASSETS.fetch(request);
+        if (staticResponse.status !== 404) return staticResponse;
+
+        const filename = url.pathname.slice("/assets/".length);
+        if (filename && !filename.includes("/")) {
+          const fallbackUrl = new URL(request.url);
+          fallbackUrl.pathname = `/${filename}`;
+          const fallbackResponse = await env.ASSETS.fetch(new Request(fallbackUrl, request));
+          if (fallbackResponse.status !== 404) return fallbackResponse;
+        }
+      }
 
       const response = await handler.fetch(request);
       return await normalizeCatastrophicSsrResponse(response);
@@ -281,3 +296,8 @@ export default {
     }
   },
 };
+
+
+
+
+
