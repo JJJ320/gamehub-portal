@@ -20,4 +20,11 @@
   <url><loc>https://gamehub-portal.pages.dev/jogo/among-us</loc><changefreq>weekly</changefreq><priority>0.7</priority></url>
   <url><loc>https://gamehub-portal.pages.dev/jogo/roblox</loc><changefreq>weekly</changefreq><priority>0.7</priority></url>
   <url><loc>https://gamehub-portal.pages.dev/jogo/friday-night-funkin</loc><changefreq>weekly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://gamehub-portal.pages.dev/categoria/acao</loc></url>
+  <url><loc>https://gamehub-portal.pages.dev/categoria/aventura</loc></url>
+  <url><loc>https://gamehub-portal.pages.dev/categoria/terror</loc></url>
+  <url><loc>https://gamehub-portal.pages.dev/categoria/corrida</loc></url>
+  <url><loc>https://gamehub-portal.pages.dev/categoria/multiplayer</loc></url>
+  <url><loc>https://gamehub-portal.pages.dev/categoria/puzzle</loc></url>
+  <url><loc>https://gamehub-portal.pages.dev/categoria/esportes</loc></url>
 </urlset>

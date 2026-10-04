@@ -1,4 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+
+const SITE_URL = "https://gamehub-portal.pages.dev";
 import { Search, X } from "lucide-react";
 import { useState } from "react";
 import { GameGrid } from "@/components/game-card";
@@ -9,7 +11,19 @@ import { searchCatalog, useGames } from "@/hooks/use-games";
 import { cn } from "@/lib/utils";
 
 type GamesSearch = { q: string | undefined; cat: string | undefined };
-export const Route = createFileRoute("/jogos")({ ssr: false, validateSearch: (s: Record<string, unknown>): GamesSearch => ({ q: typeof s.q === "string" ? s.q : undefined, cat: typeof s.cat === "string" ? s.cat : undefined }), component: AllGames });
+
+const CATALOG_TITLE = "Todos os Jogos — Jogos Online Grátis | GameHub";
+const CATALOG_DESCRIPTION = "Explore todos os jogos online grátis do GameHub. Busque por nome ou navegue por categorias, gêneros e estilos para jogar direto no navegador.";
+
+export const Route = createFileRoute("/jogos")({  validateSearch: (s: Record<string, unknown>): GamesSearch => ({ q: typeof s.q === "string" ? s.q : undefined, cat: typeof s.cat === "string" ? s.cat : undefined }), component: AllGames, head: () => {
+ const category = undefined;
+ const title = category ? category.name + " — Jogos Online Grátis | GameHub" : CATALOG_TITLE;
+ const description = category ? category.description + " Encontre e jogue jogos de " + category.name.toLowerCase() + " online grátis no GameHub." : CATALOG_DESCRIPTION;
+ const url = category ? SITE_URL + "/jogos?cat=" + encodeURIComponent(category.slug) : SITE_URL + "/jogos";
+ const breadcrumb = {"@context":"https://schema.org","@type":"BreadcrumbList",itemListElement:[{"@type":"ListItem",position:1,name:"Início",item:SITE_URL+"/"},{"@type":"ListItem",position:2,name:category?.name ?? "Todos os Jogos",item:url}]};
+ const collection = {"@context":"https://schema.org","@type":"CollectionPage",name:title,description,url,inLanguage:"pt-BR"};
+ return {meta:[{title},{name:"description",content:description},{name:"robots",content:"index, follow, max-image-preview:large"},{property:"og:title",content:title},{property:"og:description",content:description},{property:"og:type",content:"website"},{property:"og:url",content:url},{property:"og:site_name",content:"GameHub"},{name:"twitter:card",content:"summary_large_image"},{name:"twitter:title",content:title},{name:"twitter:description",content:description}],links:[{rel:"canonical",href:url},{rel:"alternate",hrefLang:"pt-BR",href:url}],scripts:[{type:"application/ld+json",children:JSON.stringify(breadcrumb)},{type:"application/ld+json",children:JSON.stringify(collection)}]};
+} });
 
 function AllGames() {
   const { q, cat } = Route.useSearch();

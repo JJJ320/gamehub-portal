@@ -108,8 +108,6 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "twitter:image", content: `${SITE_URL}/logo-gamehub.png` },
     ],
     links: [
-      { rel: "canonical", href: SITE_URL + "/" },
-      { rel: "alternate", hrefLang: "pt-BR", href: SITE_URL + "/" },
       { rel: "sitemap", type: "application/xml", href: "/sitemap.xml" },
       { rel: "stylesheet", href: appCss },
       { rel: "preconnect", href: "https://fonts.googleapis.com" },

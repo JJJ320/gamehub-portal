@@ -1,4 +1,4 @@
-﻿import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Gamepad2, Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { z } from "zod";
@@ -37,7 +37,7 @@ export const Route = createFileRoute("/auth")({
       {
         name: "description",
         content:
-          "Acesse sua conta GameHub para personalizar seu perfil, favoritos e histÃ³rico de jogos.",
+          "Acesse sua conta GameHub para personalizar seu perfil, favoritos e histórico de jogos.",
       },
       {
         property: "og:title",
@@ -65,7 +65,7 @@ const emailSchema = z
   .string()
   .trim()
   .email({
-    message: "Informe um e-mail vÃ¡lido",
+    message: "Informe um e-mail válido",
   })
   .max(255);
 
@@ -75,17 +75,17 @@ const passwordSchema = z
     message: "A senha deve ter pelo menos 8 caracteres",
   })
   .max(72, {
-    message: "A senha deve ter no mÃ¡ximo 72 caracteres",
+    message: "A senha deve ter no máximo 72 caracteres",
   });
 
 const nameSchema = z
   .string()
   .trim()
   .min(2, {
-    message: "Informe seu nome (mÃ­n. 2 caracteres)",
+    message: "Informe seu nome (mín. 2 caracteres)",
   })
   .max(60, {
-    message: "O nome deve ter no mÃ¡ximo 60 caracteres",
+    message: "O nome deve ter no máximo 60 caracteres",
   });
 
 function AuthPage() {
@@ -143,7 +143,7 @@ function AuthPage() {
     const emailResult = emailSchema.safeParse(email);
 
     if (!emailResult.success) {
-      next["email"] = emailResult.error.issues[0]?.message ?? "Informe um e-mail vÃ¡lido";
+      next["email"] = emailResult.error.issues[0]?.message ?? "Informe um e-mail válido";
     }
 
     if (!password) {
@@ -197,11 +197,11 @@ function AuthPage() {
     }
 
     if (!emailResult.success) {
-      next["email"] = emailResult.error.issues[0]?.message ?? "Informe um e-mail vÃ¡lido";
+      next["email"] = emailResult.error.issues[0]?.message ?? "Informe um e-mail válido";
     }
 
     if (!passResult.success) {
-      next["password"] = passResult.error.issues[0]?.message ?? "Informe uma senha vÃ¡lida";
+      next["password"] = passResult.error.issues[0]?.message ?? "Informe uma senha válida";
     }
 
     if (Object.keys(next).length > 0) {
@@ -403,7 +403,7 @@ function AuthPage() {
                         error: errors["password"],
                       }
                     : {})}
-                  hint="MÃ­nimo de 8 caracteres."
+                  hint="Mínimo de 8 caracteres."
                   autoComplete="new-password"
                 />
 
@@ -531,18 +531,18 @@ function getAuthErrorMessage(error: unknown): string {
     normalized.includes("already registered") ||
     normalized.includes("already in use")
   ) {
-    return "Este e-mail jÃ¡ possui uma conta. FaÃ§a login.";
+    return "Este e-mail já possui uma conta. Faça login.";
   }
 
   if (
     code === "auth/weak-password" ||
     (normalized.includes("password") && normalized.includes("weak"))
   ) {
-    return "Esta senha Ã© muito fraca. Escolha uma senha mais forte.";
+    return "Esta senha é muito fraca. Escolha uma senha mais forte.";
   }
 
   if (code === "auth/invalid-email" || normalized.includes("invalid email")) {
-    return "Informe um e-mail vÃ¡lido.";
+    return "Informe um e-mail válido.";
   }
 
   if (
@@ -557,5 +557,5 @@ function getAuthErrorMessage(error: unknown): string {
     return "A janela do Google foi fechada antes de concluir o login.";
   }
 
-  return "NÃ£o foi possÃ­vel concluir a autenticaÃ§Ã£o. Tente novamente.";
+  return "Não foi possível concluir a autenticação. Tente novamente.";
 }

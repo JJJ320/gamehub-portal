@@ -5,7 +5,8 @@ import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { useGames } from "@/hooks/use-games";
 
-export const Route = createFileRoute("/novos")({ ssr: false, component: NewGamesPage });
+const SITE_URL = "https://gamehub-portal.pages.dev";
+export const Route = createFileRoute("/novos")({  component: NewGamesPage, head: () => { const title="Novos Jogos — Lançamentos Online Grátis | GameHub"; const description="Confira os jogos adicionados mais recentemente ao GameHub e descubra novos jogos online grátis para jogar no navegador."; return {meta:[{title},{name:"description",content:description},{name:"robots",content:"index, follow, max-image-preview:large"},{property:"og:title",content:title},{property:"og:description",content:description},{property:"og:type",content:"website"},{property:"og:url",content:SITE_URL+"/novos"},{property:"og:site_name",content:"GameHub"},{name:"twitter:card",content:"summary_large_image"},{name:"twitter:title",content:title},{name:"twitter:description",content:description}],links:[{rel:"canonical",href:SITE_URL+"/novos"},{rel:"alternate",hrefLang:"pt-BR",href:SITE_URL+"/novos"}]}; } });
 
 function NewGamesPage() {
   const games = [...useGames()]

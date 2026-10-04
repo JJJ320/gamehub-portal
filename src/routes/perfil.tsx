@@ -27,8 +27,8 @@ export const Route = createFileRoute("/perfil")({
   component: ProfilePage,
 });
 
-const nameSchema = z.string().trim().min(2, "Informe um nome com pelo menos 2 caracteres").max(60, "O nome deve ter no mÃ¡ximo 60 caracteres");
-const avatarSchema = z.union([z.literal(""), z.string().trim().url("Informe uma URL vÃ¡lida de imagem").max(500)]);
+const nameSchema = z.string().trim().min(2, "Informe um nome com pelo menos 2 caracteres").max(60, "O nome deve ter no máximo 60 caracteres");
+const avatarSchema = z.union([z.literal(""), z.string().trim().url("Informe uma URL válida de imagem").max(500)]);
 
 function ProfilePage() {
   const navigate = useNavigate();
@@ -115,8 +115,8 @@ function ProfilePage() {
     const avatarResult = avatarFile ? { success: true as const, data: avatarUrl.trim() } : avatarSchema.safeParse(avatarUrl.trim());
     const next: Record<string, string> = {};
 
-    if (!nameResult.success) next.displayName = nameResult.error.issues[0]?.message ?? "Nome invÃ¡lido";
-    if (!avatarResult.success) next.avatarUrl = avatarResult.error.issues[0]?.message ?? "URL do avatar invÃ¡lida";
+    if (!nameResult.success) next.displayName = nameResult.error.issues[0]?.message ?? "Nome inválido";
+    if (!avatarResult.success) next.avatarUrl = avatarResult.error.issues[0]?.message ?? "URL do avatar inválida";
     if (Object.keys(next).length > 0) {
       setErrors(next);
       return;
@@ -130,7 +130,7 @@ function ProfilePage() {
       if (avatarFile) {
         const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
         const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
-        if (!cloudName || !uploadPreset) throw new Error("O upload de imagens nÃ£o estÃ¡ configurado.");
+        if (!cloudName || !uploadPreset) throw new Error("O upload de imagens não está configurado.");
         const body = new FormData();
         body.append("file", avatarFile);
         body.append("upload_preset", uploadPreset);
@@ -170,7 +170,7 @@ function ProfilePage() {
       return;
     }
     if (newPassword !== confirmPassword) {
-      setPasswordStatus({ kind: "error", text: "As senhas nÃ£o sÃ£o iguais." });
+      setPasswordStatus({ kind: "error", text: "As senhas não são iguais." });
       return;
     }
 
@@ -231,7 +231,7 @@ function ProfilePage() {
       navigate({ to: "/", replace: true });
     } catch (error) {
       console.error("Erro ao sair da conta:", error);
-      setStatus({ kind: "error", text: "NÃ£o foi possÃ­vel sair da conta. Tente novamente." });
+      setStatus({ kind: "error", text: "Não foi possível sair da conta. Tente novamente." });
     }
   };
 
@@ -240,13 +240,13 @@ function ProfilePage() {
       <SiteHeader />
       <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
         <nav className="text-xs text-muted-foreground">
-          <Link to="/" className="hover:text-primary">InÃ­cio</Link>{" "} / Meu perfil
+          <Link to="/" className="hover:text-primary">Início</Link>{" "} / Meu perfil
         </nav>
 
         <header className="mt-4 flex flex-col gap-4 rounded-2xl border border-border bg-card p-5 shadow-card sm:flex-row sm:items-center sm:p-6">
           <div className="flex items-center gap-4">
             {profile?.avatar_url ? (
-              <img src={profile.avatar_url} alt={`Avatar de ${profile.display_name ?? "usuÃ¡rio"}`} className="size-16 shrink-0 rounded-xl border border-border object-cover" />
+              <img src={profile.avatar_url} alt={`Avatar de ${profile.display_name ?? "usuário"}`} className="size-16 shrink-0 rounded-xl border border-border object-cover" />
             ) : (
               <span className="grid size-16 shrink-0 place-items-center rounded-xl bg-gradient-violet font-display text-xl font-extrabold text-primary-foreground shadow-glow">{initials}</span>
             )}
@@ -265,7 +265,7 @@ function ProfilePage() {
               <h2 className="font-display text-lg font-bold uppercase">Dados do perfil</h2>
               <form onSubmit={save} className="mt-4 space-y-4" noValidate>
                 <div className="space-y-1.5">
-                  <Label htmlFor="displayName">Nome de exibiÃ§Ã£o</Label>
+                  <Label htmlFor="displayName">Nome de exibição</Label>
                   <Input id="displayName" value={displayName} onChange={(e) => setDisplayName(e.target.value)} aria-invalid={Boolean(errors.displayName)} className="bg-surface" />
                   {errors.displayName && <p className="text-xs text-destructive">{errors.displayName}</p>}
                 </div>
@@ -273,7 +273,7 @@ function ProfilePage() {
                 <div className="space-y-1.5">
                   <Label htmlFor="email">E-mail</Label>
                   <Input id="email" value={user.email ?? ""} disabled className="bg-surface" />
-                  <p className="text-xs text-muted-foreground">O e-mail da conta nÃ£o pode ser alterado aqui.</p>
+                  <p className="text-xs text-muted-foreground">O e-mail da conta não pode ser alterado aqui.</p>
                 </div>
 
                 <div className="space-y-1.5">
@@ -281,21 +281,21 @@ function ProfilePage() {
                   <Input id="avatarFile" type="file" accept="image/*" className="bg-surface" onChange={(e) => {
                     const file = e.target.files?.[0] ?? null;
                     if (file && file.size > 5 * 1024 * 1024) {
-                      setErrors((prev) => ({ ...prev, avatarUrl: "A imagem deve ter no mÃ¡ximo 5 MB." }));
+                      setErrors((prev) => ({ ...prev, avatarUrl: "A imagem deve ter no máximo 5 MB." }));
                       e.target.value = "";
                       return;
                     }
                     setErrors((prev) => ({ ...prev, avatarUrl: "" }));
                     setAvatarFile(file);
                   }} />
-                  <p className="text-xs text-muted-foreground">Escolha uma imagem de atÃ© 5 MB ou informe uma URL abaixo.</p>
+                  <p className="text-xs text-muted-foreground">Escolha uma imagem de até 5 MB ou informe uma URL abaixo.</p>
                   <Label htmlFor="avatarUrl">URL da foto (opcional)</Label>
                   <Input id="avatarUrl" value={avatarUrl} placeholder="https://..." onChange={(e) => { setAvatarUrl(e.target.value); setAvatarFile(null); }} aria-invalid={Boolean(errors.avatarUrl)} className="bg-surface" />
                   {errors.avatarUrl && <p className="text-xs text-destructive">{errors.avatarUrl}</p>}
-                  {(avatarFile || avatarUrl) && <img src={avatarFile ? URL.createObjectURL(avatarFile) : avatarUrl} alt="PrÃ©via da foto de perfil" className="size-20 rounded-xl border border-border object-cover" />}
+                  {(avatarFile || avatarUrl) && <img src={avatarFile ? URL.createObjectURL(avatarFile) : avatarUrl} alt="Prévia da foto de perfil" className="size-20 rounded-xl border border-border object-cover" />}
                 </div>
 
-                <Button type="submit" variant="hero" disabled={saving}><Save className="size-4" />Salvar alteraÃ§Ãµes</Button>
+                <Button type="submit" variant="hero" disabled={saving}><Save className="size-4" />Salvar alterações</Button>
                 {status && <p role={status.kind === "error" ? "alert" : "status"} className={status.kind === "error" ? "rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive" : "rounded-lg border border-primary/40 bg-primary/10 px-3 py-2 text-sm"}>{status.text}</p>}
               </form>
             </section>
@@ -308,13 +308,13 @@ function ProfilePage() {
               <p className="mt-1 text-sm text-muted-foreground">
                 {hasPasswordProvider
                   ? "Altere sua senha de acesso ao GameHub."
-                  : "Sua conta usa o Google. Crie uma senha para tambÃ©m poder entrar com seu e-mail."}
+                  : "Sua conta usa o Google. Crie uma senha para também poder entrar com seu e-mail."}
               </p>
 
               <form onSubmit={handlePassword} className="mt-4 space-y-4">
                 <div className="space-y-1.5">
                   <Label htmlFor="newPassword">{hasPasswordProvider ? "Nova senha" : "Criar senha"}</Label>
-                  <Input id="newPassword" type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} autoComplete="new-password" placeholder="MÃ­nimo de 8 caracteres" className="bg-surface" />
+                  <Input id="newPassword" type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} autoComplete="new-password" placeholder="Mínimo de 8 caracteres" className="bg-surface" />
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="confirmPassword">Confirmar senha</Label>
@@ -331,8 +331,8 @@ function ProfilePage() {
 
           <aside className="space-y-6">
             <AchievementsCard items={userGames} />
-            <UserGamesCard title="Favoritos" icon={<Heart className="size-5 text-primary" />} items={userGames.filter((item) => item.favorite)} games={games} emptyText="VocÃª ainda nÃ£o favoritou nenhum jogo." />
-            <UserGamesCard title="HistÃ³rico" icon={<Clock className="size-5 text-primary" />} items={[...userGames].filter((item) => item.lastPlayedAt).sort((a, b) => (b.lastPlayedAt ?? "").localeCompare(a.lastPlayedAt ?? "")).slice(0, 6)} games={games} emptyText="Seu histÃ³rico aparecerÃ¡ aqui quando vocÃª jogar." />
+            <UserGamesCard title="Favoritos" icon={<Heart className="size-5 text-primary" />} items={userGames.filter((item) => item.favorite)} games={games} emptyText="Você ainda não favoritou nenhum jogo." />
+            <UserGamesCard title="Histórico" icon={<Clock className="size-5 text-primary" />} items={[...userGames].filter((item) => item.lastPlayedAt).sort((a, b) => (b.lastPlayedAt ?? "").localeCompare(a.lastPlayedAt ?? "")).slice(0, 6)} games={games} emptyText="Seu histórico aparecerá aqui quando você jogar." />
           </aside>
         </div>
       </main>

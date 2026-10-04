@@ -1,3 +1,4 @@
+const SITE_URL = "https://gamehub-portal.pages.dev";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Flame, Play, Sparkles, Star, TrendingUp } from "lucide-react";
 import { CategorySidebar } from "@/components/category-sidebar";
@@ -8,7 +9,8 @@ import { Button } from "@/components/ui/button";
 import { formatPlays } from "@/data/games";
 import { useGames } from "@/hooks/use-games";
 
-export const Route = createFileRoute("/")({ ssr: false, component: Home });
+export const Route = createFileRoute("/")({
+  head: () => ({ meta: [{ title: "GameHub — Portal de Jogos Online Grátis" }, { name: "description", content: "GameHub é um portal de jogos online grátis para descobrir e jogar no navegador." }], links: [{ rel: "canonical", href: SITE_URL + "/" }, { rel: "alternate", hrefLang: "pt-BR", href: SITE_URL + "/" }] }), ssr: false, component: Home });
 
 function Home() {
   const games = useGames();

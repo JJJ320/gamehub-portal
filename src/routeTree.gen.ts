@@ -20,6 +20,7 @@ import { Route as PerfilRouteImport } from './routes/perfil'
 import { Route as RankingRouteImport } from './routes/ranking'
 import { Route as AdminJogosRouteImport } from './routes/admin.jogos'
 import { Route as AuthCallbackRouteImport } from './routes/auth.callback'
+import { Route as CategoriaSlugRouteImport } from './routes/categoria.$slug'
 import { Route as JogoSlugRouteImport } from './routes/jogo.$slug'
 
 const IndexRoute = IndexRouteImport.update({
@@ -77,6 +78,11 @@ const AuthCallbackRoute = AuthCallbackRouteImport.update({
   path: '/callback',
   getParentRoute: () => AuthRoute,
 } as any)
+const CategoriaSlugRoute = CategoriaSlugRouteImport.update({
+  id: '/categoria/$slug',
+  path: '/categoria/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const JogoSlugRoute = JogoSlugRouteImport.update({
   id: '/jogo/$slug',
   path: '/jogo/$slug',
@@ -95,6 +101,7 @@ export interface FileRoutesByFullPath {
   '/ranking': typeof RankingRoute
   '/admin/jogos': typeof AdminJogosRoute
   '/auth/callback': typeof AuthCallbackRoute
+  '/categoria/$slug': typeof CategoriaSlugRoute
   '/jogo/$slug': typeof JogoSlugRoute
 }
 export interface FileRoutesByTo {
@@ -109,6 +116,7 @@ export interface FileRoutesByTo {
   '/ranking': typeof RankingRoute
   '/admin/jogos': typeof AdminJogosRoute
   '/auth/callback': typeof AuthCallbackRoute
+  '/categoria/$slug': typeof CategoriaSlugRoute
   '/jogo/$slug': typeof JogoSlugRoute
 }
 export interface FileRoutesById {
@@ -124,6 +132,7 @@ export interface FileRoutesById {
   '/ranking': typeof RankingRoute
   '/admin/jogos': typeof AdminJogosRoute
   '/auth/callback': typeof AuthCallbackRoute
+  '/categoria/$slug': typeof CategoriaSlugRoute
   '/jogo/$slug': typeof JogoSlugRoute
 }
 export interface FileRouteTypes {
@@ -140,6 +149,7 @@ export interface FileRouteTypes {
     | '/ranking'
     | '/admin/jogos'
     | '/auth/callback'
+    | '/categoria/$slug'
     | '/jogo/$slug'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -154,6 +164,7 @@ export interface FileRouteTypes {
     | '/ranking'
     | '/admin/jogos'
     | '/auth/callback'
+    | '/categoria/$slug'
     | '/jogo/$slug'
   id:
     | '__root__'
@@ -168,6 +179,7 @@ export interface FileRouteTypes {
     | '/ranking'
     | '/admin/jogos'
     | '/auth/callback'
+    | '/categoria/$slug'
     | '/jogo/$slug'
   fileRoutesById: FileRoutesById
 }
@@ -182,6 +194,7 @@ export interface RootRouteChildren {
   PerfilRoute: typeof PerfilRoute
   RankingRoute: typeof RankingRoute
   AdminJogosRoute: typeof AdminJogosRoute
+  CategoriaSlugRoute: typeof CategoriaSlugRoute
   JogoSlugRoute: typeof JogoSlugRoute
 }
 
@@ -264,6 +277,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthCallbackRouteImport
       parentRoute: typeof AuthRoute
     }
+    '/categoria/$slug': {
+      id: '/categoria/$slug'
+      path: '/categoria/$slug'
+      fullPath: '/categoria/$slug'
+      preLoaderRoute: typeof CategoriaSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/jogo/$slug': {
       id: '/jogo/$slug'
       path: '/jogo/$slug'
@@ -295,6 +315,7 @@ const rootRouteChildren: RootRouteChildren = {
   PerfilRoute: PerfilRoute,
   RankingRoute: RankingRoute,
   AdminJogosRoute: AdminJogosRoute,
+  CategoriaSlugRoute: CategoriaSlugRoute,
   JogoSlugRoute: JogoSlugRoute,
 }
 export const routeTree = rootRouteImport
