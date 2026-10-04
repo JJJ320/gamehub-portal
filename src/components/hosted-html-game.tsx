@@ -234,7 +234,7 @@ async function buildJsDocument(url: string): Promise<string> {
   const response = await fetch(url, { credentials: "omit" });
   if (!response.ok) throw new Error(`Falha ao carregar o JavaScript (${response.status}).`);
   const script = await response.text();
-  const safeScript = script.replace(/<\\/script/gi, "<\\\\/script");
+  const safeScript = script.replace(new RegExp("</script", "gi"), "<\\\\/script");
   const base = new URL("./", url).href;
   return `<!doctype html><html><head><meta charset="utf-8"><base href="${base}"><style>html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#000}canvas{display:block;max-width:100%;max-height:100%}</style></head><body><script>${safeScript}</script></body></html>`;
 }
