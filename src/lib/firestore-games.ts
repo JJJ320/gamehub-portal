@@ -1,4 +1,4 @@
-import { collection, deleteDoc, doc, getDocs, query, serverTimestamp, setDoc, where, type Timestamp } from "firebase/firestore";
+﻿import { collection, deleteDoc, doc, getDocs, query, serverTimestamp, setDoc, where, type Timestamp } from "firebase/firestore";
 import { auth, db } from "@/firebase";
 import type { Game } from "@/data/games";
 
@@ -73,7 +73,7 @@ export async function getGameDocument(slug: string): Promise<GameDocument | null
 
 export async function saveGame(game: GameDocument): Promise<void> {
   const gameRef = doc(db, "games", game.slug);
-'  const payload: Record<string, unknown> = Object.fromEntries(
+  const payload: Record<string, unknown> = Object.fromEntries(
     Object.entries({
       ...game,
       metricsInitialized: true,
@@ -81,7 +81,7 @@ export async function saveGame(game: GameDocument): Promise<void> {
     }).filter(([, value]) => value !== undefined),
   );
 
-  delete payload.createdAt;'
+  delete payload.createdAt;
 
   const existing = await getDocs(query(gamesCollection, where("slug", "==", game.slug)));
   const existingData = existing.empty ? null : existing.docs[0].data();
@@ -100,7 +100,7 @@ export async function saveGame(game: GameDocument): Promise<void> {
 
 async function deleteGameAssets(slug: string): Promise<void> {
   const user = auth.currentUser;
-  if (!user) throw new Error("Faça login antes de excluir o jogo.");
+  if (!user) throw new Error("FaÃ§a login antes de excluir o jogo.");
 
   const idToken = await user.getIdToken();
   const response = await fetch(
@@ -126,14 +126,14 @@ async function uploadGameFile(
   onProgress?: (completed: number, total: number) => void,
 ): Promise<string> {
   const user = auth.currentUser;
-  if (!user) throw new Error("Faça login antes de enviar o jogo.");
+  if (!user) throw new Error("FaÃ§a login antes de enviar o jogo.");
 
   const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
   const contentType = file.type || "application/octet-stream";
 
   if (file.size <= LARGE_GAME_THRESHOLD_BYTES) {
     if (file.size > MAX_GAME_FILE_BYTES) {
-      throw new Error("Arquivo muito grande. Arquivos acima de 25 MB usam o envio em partes.");
+      throw new Error("Arquivo muito grande. Arquivos acima de 50 MB usam o envio em partes.");
     }
 
     const idToken = await user.getIdToken();
@@ -159,7 +159,7 @@ async function uploadGameFile(
 
   const totalParts = Math.ceil(file.size / LARGE_GAME_CHUNK_BYTES);
   if (totalParts > MAX_LARGE_GAME_PARTS) {
-    throw new Error("Este arquivo é grande demais para o sistema de partes atual. O máximo é aproximadamente 960 MB.");
+    throw new Error("Este arquivo Ã© grande demais para o sistema de partes atual. O mÃ¡ximo Ã© aproximadamente 960 MB.");
   }
 
   const idToken = await user.getIdToken();
@@ -229,11 +229,11 @@ async function uploadGameFile(
 
 async function uploadImageAsset(slug: string, kind: "cover" | "hero", file: File): Promise<string> {
   if (file.size > MAX_GAME_FILE_BYTES) {
-    throw new Error("Arquivo muito grande. O limite do GameHub é 50 MB por arquivo.");
+    throw new Error("Arquivo muito grande. O limite do GameHub Ã© 50 MB por arquivo.");
   }
 
   const user = auth.currentUser;
-  if (!user) throw new Error("Faça login antes de enviar arquivos.");
+  if (!user) throw new Error("FaÃ§a login antes de enviar arquivos.");
 
   const idToken = await user.getIdToken();
   const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
@@ -264,7 +264,7 @@ export async function uploadGameAsset(
   file: File,
   onProgress?: (completed: number, total: number) => void,
 ): Promise<string> {
-  if (!auth.currentUser) throw new Error("Faça login antes de enviar o jogo.");
+  if (!auth.currentUser) throw new Error("FaÃ§a login antes de enviar o jogo.");
   if (kind === "game" || kind === "game-mobile") return uploadGameFile(slug, file, kind, onProgress);
   return uploadImageAsset(slug, kind, file);
 }
