@@ -1,4 +1,4 @@
-﻿import { cp, mkdir, rm, copyFile, readdir, access } from "node:fs/promises";
+import { cp, mkdir, rm, copyFile, readdir, access } from "node:fs/promises";
 
 const root = process.cwd();
 const distServer = `${root}/dist/server`;
@@ -27,4 +27,4 @@ for (const filename of await readdir(`${distClient}/assets`)) {
   }
 }
 
-console.log("Pages SSR output preparado com assets do SSR + client e arquivos public");
+const deployRedirect = `${root}/.wrangler/deploy/config.json`;\nawait rm(deployRedirect, { force: true });\n\nconsole.log("Pages SSR output preparado com assets do SSR + client e arquivos public");

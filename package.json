@@ -14,7 +14,7 @@
                     "cf-typegen":  "wrangler types",
                     "pages:prepare":  "node scripts/prepare-pages.mjs",
                     "build:pages":  "npm run build",
-                    "deploy:worker":  "npm run build \u0026\u0026 wrangler deploy",
+                    "deploy:worker":  "npm run build \u0026\u0026 wrangler --config wrangler.jsonc deploy",
                     "deploy:pages":  "npm run build:pages \u0026\u0026 wrangler pages deploy .output/public --project-name gamehub-portal --branch main"
                 },
     "overrides":  {
