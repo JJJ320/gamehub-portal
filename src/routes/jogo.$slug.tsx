@@ -35,9 +35,22 @@ export const Route = createFileRoute("/jogo/$slug")({
       };
     }
 
-    const title = `${game.title} — Jogar Online | GameHub`;
-    const description = game.shortDescription || game.description;
+    const title = game.playable
+      ? `${game.title} — Jogar Online Grátis | GameHub`
+      : `${game.title} — Jogo e Informações | GameHub`;
+    const description = game.playable
+      ? `Jogue ${game.title} online grátis no GameHub. ${game.shortDescription} Sem instalar nada, direto no navegador.`
+      : `${game.shortDescription} Veja informações, gênero, plataformas, tags e detalhes de ${game.title} no GameHub.`;
     const url = `https://gamehub-portal.pages.dev/jogo/${game.slug}`;
+    const breadcrumbSchema = {
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      itemListElement: [
+        { "@type": "ListItem", position: 1, name: "Início", item: "https://gamehub-portal.pages.dev/" },
+        { "@type": "ListItem", position: 2, name: "Jogos", item: "https://gamehub-portal.pages.dev/jogos" },
+        { "@type": "ListItem", position: 3, name: game.title, item: url },
+      ],
+    };
     const schema = {
       "@context": "https://schema.org",
       "@type": "VideoGame",
@@ -50,9 +63,9 @@ export const Route = createFileRoute("/jogo/$slug")({
       applicationCategory: "Game",
       operatingSystem: game.platforms.join(", "),
       inLanguage: "pt-BR",
-      author: { "@type": "Organization", name: game.developer || "GameHub" },
+      isAccessibleForFree: true,
+      author: { "@type": "Organization", name: "GameHub" },
     };
-
     return {
       meta: [
         { title },
@@ -61,6 +74,7 @@ export const Route = createFileRoute("/jogo/$slug")({
         { property: "og:title", content: title },
         { property: "og:description", content: description },
         { property: "og:type", content: "website" },
+        { property: "og:site_name", content: "GameHub" },
         { property: "og:url", content: url },
         { property: "og:image", content: game.hero ?? game.cover },
         { property: "og:image:alt", content: game.title },
@@ -75,6 +89,7 @@ export const Route = createFileRoute("/jogo/$slug")({
       ],
       scripts: [
         { type: "application/ld+json", children: JSON.stringify(schema) },
+        { type: "application/ld+json", children: JSON.stringify(breadcrumbSchema) },
       ],
     };
   },
@@ -101,8 +116,15 @@ function GameDetailPage() {
   const [savingRating, setSavingRating] = useState(false);
   const lastPlaySyncAt = useRef<number | null>(null);
   const [liveNow, setLiveNow] = useState(Date.now());
+  const [isMobileDevice, setIsMobileDevice] = useState(false);
 
   const PlayableGame = game ? getPlayableGame(game.slug) : undefined;
+
+  useEffect(() => {
+    const mobile = /Android|iPhone|iPad|iPod|Windows Phone/i.test(navigator.userAgent) ||
+      (navigator.maxTouchPoints > 0 && Math.min(window.innerWidth, window.innerHeight) <= 1024);
+    setIsMobileDevice(mobile);
+  }, []);
 
   useEffect(() => {
     if (!game) return;
@@ -203,7 +225,9 @@ function GameDetailPage() {
     )
     .slice(0, 6);
 
-  const canPlay = Boolean(game.playable && (PlayableGame || game.gameUrl));
+  const selectedGameUrl = isMobileDevice && game.mobileVersionEnabled && game.mobileGameUrl ? game.mobileGameUrl : game.gameUrl;
+  const selectedGameType = isMobileDevice && game.mobileVersionEnabled && game.mobileGameUrl ? (game.mobileGameType ?? game.gameType) : game.gameType;
+  const canPlay = Boolean(game.playable && (PlayableGame || selectedGameUrl));
 
   const toggleFavorite = async () => {
     if (!user || savingFavorite) return;
@@ -353,12 +377,12 @@ function GameDetailPage() {
                   <GamePlayer>
                     {PlayableGame ? (
                       <PlayableGame />
-                    ) : game.gameUrl && game.gameType === "flash" ? (
-                      <RuffleFlashGame url={game.gameUrl} title={game.title} />
-                    ) : game.gameUrl && (game.gameType === "html" || game.gameType === "zip") ? (
-                      <HostedHtmlGame url={game.gameUrl} type={game.gameType} title={game.title} />
+                    ) : selectedGameUrl && selectedGameType === "flash" ? (
+                      <RuffleFlashGame url={selectedGameUrl} title={game.title} />
+                    ) : selectedGameUrl && (selectedGameType === "html" || selectedGameType === "zip") ? (
+                      <HostedHtmlGame url={selectedGameUrl} type={selectedGameType} title={game.title} />
                     ) : (
-                      <iframe src={game.gameUrl} title={game.title} className="size-full border-0" allow="fullscreen; autoplay; gamepad" />
+                      <iframe src={selectedGameUrl} title={game.title} className="size-full border-0" allow="fullscreen; autoplay; gamepad" />
                     )}
                   </GamePlayer>
                 </>

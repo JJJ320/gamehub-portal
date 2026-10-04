@@ -7,6 +7,9 @@ export type GameType = "internal" | "url" | "html" | "zip" | "flash";
 export type GameDocument = Game & {
   gameType?: GameType;
   gameUrl?: string;
+  mobileGameUrl?: string;
+  mobileGameType?: GameType;
+  mobileVersionEnabled?: boolean;
   published?: boolean;
   createdAt?: string;
   updatedAt?: unknown;
@@ -111,7 +114,7 @@ export async function deleteGame(slug: string): Promise<void> {
   await deleteDoc(doc(db, "games", slug));
 }
 
-async function uploadGameFile(slug: string, file: File): Promise<string> {
+async function uploadGameFile(slug: string, file: File, kind: "game" | "game-mobile" = "game"): Promise<string> {
   if (file.size > MAX_GAME_FILE_BYTES) {
     throw new Error("Arquivo muito grande. O limite do GameHub é 50 MB por arquivo.");
   }
@@ -123,7 +126,7 @@ async function uploadGameFile(slug: string, file: File): Promise<string> {
   const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
   const response = await fetch(
     "/api/game-upload?slug=" + encodeURIComponent(slug) +
-      "&kind=game&filename=" + encodeURIComponent(safeName),
+      "&kind=" + kind + "&filename=" + encodeURIComponent(safeName),
     {
       method: "PUT",
       headers: {
@@ -173,10 +176,10 @@ async function uploadImageAsset(slug: string, kind: "cover" | "hero", file: File
 
 export async function uploadGameAsset(
   slug: string,
-  kind: "cover" | "hero" | "game",
+  kind: "cover" | "hero" | "game" | "game-mobile",
   file: File,
 ): Promise<string> {
   if (!auth.currentUser) throw new Error("Faça login antes de enviar o jogo.");
-  if (kind === "game") return uploadGameFile(slug, file);
+  if (kind === "game" || kind === "game-mobile") return uploadGameFile(slug, file, kind);
   return uploadImageAsset(slug, kind, file);
 }

@@ -88,9 +88,10 @@ async function isGameOwner(idToken: string): Promise<boolean> {
   return ownerResponse.ok;
 }
 
-function getStoredFilename(kind: "cover" | "hero" | "game", filename: string): string {
+function getStoredFilename(kind: "cover" | "hero" | "game" | "game-mobile", filename: string): string {
   if (kind === "cover") return "cover" + getExtension(filename);
   if (kind === "hero") return "hero" + getExtension(filename);
+  if (kind === "game-mobile") return "game-mobile" + getExtension(filename);
   return "game" + getExtension(filename);
 }
 
@@ -107,7 +108,7 @@ function publicSupabaseUrl(path: string): string {
 async function uploadToSupabase(
   request: Request,
   slug: string,
-  kind: "cover" | "hero" | "game",
+  kind: "cover" | "hero" | "game" | "game-mobile",
   filename: string,
   serviceRoleKey: string,
 ): Promise<Response> {
@@ -223,14 +224,14 @@ async function handleGameAsset(request: Request, env: WorkerEnv): Promise<Respon
     const kind = url.searchParams.get("kind");
     const filename = sanitizeSegment(url.searchParams.get("filename") ?? "game.bin");
 
-    if (!slug || !["cover", "hero", "game"].includes(kind ?? "")) {
+    if (!slug || !["cover", "hero", "game", "game-mobile"].includes(kind ?? "")) {
       return json({ error: "Slug inválido." }, 400);
     }
 
     return uploadToSupabase(
       request,
       slug,
-      kind as "cover" | "hero" | "game",
+      kind as "cover" | "hero" | "game" | "game-mobile",
       filename,
       env.SUPABASE_SERVICE_ROLE_KEY,
     );
@@ -295,8 +296,18 @@ export default {
       }
 
       const response = await handler.fetch(request);
-      return await normalizeCatastrophicSsrResponse(response);
-    } catch (error) {
+      const normalized = await normalizeCatastrophicSsrResponse(response);
+      const contentType = normalized.headers.get("content-type") ?? "";
+      if (contentType.toLowerCase().startsWith("text/html") && !contentType.toLowerCase().includes("charset=")) {
+        const headers = new Headers(normalized.headers);
+        headers.set("content-type", "text/html; charset=utf-8");
+        return new Response(normalized.body, {
+          status: normalized.status,
+          statusText: normalized.statusText,
+          headers,
+        });
+      }
+      return normalized;    } catch (error) {
       console.error(error);
       return new Response(renderErrorPage(), {
         status: 500,

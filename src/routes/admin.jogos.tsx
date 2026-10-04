@@ -41,6 +41,9 @@ const emptyGame = (): GameDocument => ({
   isNew: true,
   gameType: "html",
   gameUrl: "",
+  mobileGameUrl: "",
+  mobileGameType: "html",
+  mobileVersionEnabled: false,
   published: true,
 });
 
@@ -55,6 +58,7 @@ function AdminGames() {
   const [coverFile, setCoverFile] = useState<File | null>(null);
   const [heroFile, setHeroFile] = useState<File | null>(null);
   const [gameFile, setGameFile] = useState<File | null>(null);
+  const [mobileGameFile, setMobileGameFile] = useState<File | null>(null);
   const [ownerChecking, setOwnerChecking] = useState(true);
   const [isOwner, setIsOwner] = useState(false);
 
@@ -137,6 +141,14 @@ function AdminGames() {
         next.gameType = extension === "zip" ? "zip" : extension === "swf" ? "flash" : "html";
         next.gameUrl = await uploadGameAsset(next.slug, "game", gameFile);
       }
+      if (next.mobileVersionEnabled && mobileGameFile) {
+        const extension = mobileGameFile.name.toLowerCase().split(".").pop();
+        next.mobileGameType = extension === "zip" ? "zip" : extension === "swf" ? "flash" : "html";
+        next.mobileGameUrl = await uploadGameAsset(next.slug, "game-mobile", mobileGameFile);
+      } else if (!next.mobileVersionEnabled) {
+        next.mobileGameUrl = "";
+        next.mobileGameType = undefined;
+      }
       next.tags = tagText.split(",").map((tag) => tag.trim()).filter(Boolean);
       next.playable = Boolean(next.gameUrl) || next.gameType === "internal";
       await saveGame(next);
@@ -146,14 +158,14 @@ function AdminGames() {
       setTagText("");
     } catch (error) {
       console.error(error);
-      setMessage("Erro ao salvar. Verifique se sua conta estÃ¡ cadastrada em owners.");
+      setMessage("Erro ao salvar. Verifique se sua conta está cadastrada em owners.");
     } finally {
       setBusy(false);
     }
   };
 
   const remove = async (slug: string) => {
-    if (!confirm(`Excluir "${slug}" do catÃ¡logo?`)) return;
+    if (!confirm(`Excluir "${slug}" do catálogo?`)) return;
     try {
       await deleteGame(slug);
       await reload();
@@ -200,7 +212,7 @@ function AdminGames() {
       <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <Link to="/" className="text-xs text-muted-foreground hover:text-primary">InÃ­cio</Link>
+            <Link to="/" className="text-xs text-muted-foreground hover:text-primary">Início</Link>
             <h1 className="mt-2 font-display text-3xl font-extrabold uppercase">Gerenciar jogos</h1>
             <p className="mt-1 text-sm text-muted-foreground">Catálogo modular do GameHub — Firebase Firestore + Storage.</p>
           </div>
@@ -235,6 +247,22 @@ function AdminGames() {
               <p className="mt-1 text-xs text-muted-foreground">
                 HTML para jogos de arquivo único, ZIP para jogos com assets ou SWF para jogos em Flash (executados pelo Ruffle).
               </p>
+            </div>
+            <div className="sm:col-span-2 rounded-xl border border-border/70 bg-surface/50 p-4">
+              <label className="flex cursor-pointer items-start gap-3">
+                <input type="checkbox" checked={Boolean(form.mobileVersionEnabled)} onChange={(e) => setForm({ ...form, mobileVersionEnabled: e.target.checked })} className="mt-1 size-4 accent-primary" />
+                <span>
+                  <span className="block text-sm font-semibold">Adicionar versão para dispositivos móveis</span>
+                  <span className="mt-1 block text-xs text-muted-foreground">Se ativada, celulares e tablets usarão automaticamente esta versão. Se desativada, a versão principal será usada em todos os dispositivos.</span>
+                </span>
+              </label>
+              {form.mobileVersionEnabled && (
+                <div className="mt-4">
+                  <Label>Arquivo do jogo para celular / tablet</Label>
+                  <Input className="mt-1" type="file" accept=".zip,.html,.htm,.swf,application/zip,text/html,application/x-shockwave-flash" onChange={(e) => setMobileGameFile(e.target.files?.[0] ?? null)} />
+                  <p className="mt-1 text-xs text-muted-foreground">Celulares e tablets serão direcionados para este arquivo.</p>
+                </div>
+              )}
             </div>
             <div><Label>Tags</Label><Input value={tagText} onChange={(e) => setTagText(e.target.value)} placeholder="Arcade, Original, Web" /></div>
           </div>
