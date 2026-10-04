@@ -4,7 +4,7 @@ import { isLargeGameUrl, prepareLargeGameCache } from "@/lib/large-game-cache";
 
 type HostedHtmlGameProps = {
   url: string;
-  type: "html" | "zip";
+  type: "html" | "zip" | "js" | "jar";
   title: string;
 };
 
@@ -230,6 +230,39 @@ async function buildHtmlDocument(url: string): Promise<string> {
   return html;
 }
 
+async function buildJsDocument(url: string): Promise<string> {
+  const response = await fetch(url, { credentials: "omit" });
+  if (!response.ok) throw new Error(`Falha ao carregar o JavaScript (${response.status}).`);
+  const script = await response.text();
+  const safeScript = script.replace(/<\\/script/gi, "<\\\\/script");
+  const base = new URL("./", url).href;
+  return `<!doctype html><html><head><meta charset="utf-8"><base href="${base}"><style>html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#000}canvas{display:block;max-width:100%;max-height:100%}</style></head><body><script>${safeScript}</script></body></html>`;
+}
+
+async function buildJarDocument(url: string, title: string): Promise<string> {
+  const encodedUrl = JSON.stringify(url);
+  const encodedTitle = JSON.stringify(title);
+  return `<!doctype html><html><head><meta charset="utf-8"><title>${encodedTitle} — GameHub</title><style>html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#000;color:#fff;font-family:system-ui,sans-serif}#status{position:absolute;inset:0;display:grid;place-items:center;padding:24px;text-align:center}#status p{max-width:620px;line-height:1.5}</style><script src="https://cjrtnc.leaningtech.com/4.2/loader.js"></script></head><body><div id="status"><p>Carregando jogo Java...</p></div><script>
+(async function () {
+  const status = document.getElementById("status");
+  try {
+    if (typeof cheerpjInit !== "function" || typeof cheerpjRunJar !== "function") {
+      throw new Error("O emulador Java não foi carregado.");
+    }
+    await cheerpjInit();
+    status.remove();
+    await cheerpjRunJar(${encodedUrl});
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    status.innerHTML = "<p><strong>Não foi possível executar este JAR no navegador.</strong><br>" +
+      "O arquivo pode exigir uma versão específica do Java ou recursos nativos incompatíveis.<br><br>" +
+      message + "</p>";
+    console.error("GameHub JAR:", error);
+  }
+})();
+</script></body></html>`;
+}
+
 export function HostedHtmlGame({ url, type, title }: HostedHtmlGameProps) {
   const [srcDoc, setSrcDoc] = useState("");
   const [error, setError] = useState("");
@@ -252,7 +285,7 @@ export function HostedHtmlGame({ url, type, title }: HostedHtmlGameProps) {
           if (!cancelled) setLargeGameProgress(null);
         }
 
-        const html = type === "zip" ? await buildZipHtml(url) : await buildHtmlDocument(url);
+        const html = type === "zip" ? await buildZipHtml(url) : type === "js" ? await buildJsDocument(url) : type === "jar" ? await buildJarDocument(url, title) : await buildHtmlDocument(url);
         if (!cancelled) setSrcDoc(html);
       } catch (loadError) {
         if (!cancelled) setError(loadError instanceof Error ? loadError.message : "Não foi possível carregar o jogo.");

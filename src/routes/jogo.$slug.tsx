@@ -379,7 +379,7 @@ function GameDetailPage() {
                       <PlayableGame />
                     ) : selectedGameUrl && selectedGameType === "flash" ? (
                       <RuffleFlashGame url={selectedGameUrl} title={game.title} />
-                    ) : selectedGameUrl && (selectedGameType === "html" || selectedGameType === "zip") ? (
+                    ) : selectedGameUrl && (selectedGameType === "html" || selectedGameType === "zip" || selectedGameType === "js" || selectedGameType === "jar") ? (
                       <HostedHtmlGame url={selectedGameUrl} type={selectedGameType} title={game.title} />
                     ) : (
                       <iframe src={selectedGameUrl} title={game.title} className="size-full border-0" allow="fullscreen; autoplay; gamepad" />

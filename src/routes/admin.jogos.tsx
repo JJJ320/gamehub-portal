@@ -138,7 +138,7 @@ function AdminGames() {
       if (heroFile) next.hero = await uploadGameAsset(next.slug, "hero", heroFile);
       if (gameFile) {
         const extension = gameFile.name.toLowerCase().split(".").pop();
-        next.gameType = extension === "zip" ? "zip" : extension === "swf" ? "flash" : "html";
+        next.gameType = extension === "zip" ? "zip" : extension === "swf" ? "flash" : extension === "jar" ? "jar" : extension === "js" ? "js" : "html";
         setMessage(gameFile.size > 50 * 1024 * 1024 ? "Enviando jogo grande em partes..." : "Enviando jogo...");
         next.gameUrl = await uploadGameAsset(next.slug, "game", gameFile, (completed, total) => {
           setMessage("Enviando jogo grande: " + completed + "/" + total + " partes...");
@@ -146,7 +146,7 @@ function AdminGames() {
       }
       if (next.mobileVersionEnabled && mobileGameFile) {
         const extension = mobileGameFile.name.toLowerCase().split(".").pop();
-        next.mobileGameType = extension === "zip" ? "zip" : extension === "swf" ? "flash" : "html";
+        next.mobileGameType = extension === "zip" ? "zip" : extension === "swf" ? "flash" : extension === "jar" ? "jar" : extension === "js" ? "js" : "html";
         setMessage(mobileGameFile.size > 50 * 1024 * 1024 ? "Enviando versão mobile em partes..." : "Enviando versão mobile...");
         next.mobileGameUrl = await uploadGameAsset(next.slug, "game-mobile", mobileGameFile, (completed, total) => {
           setMessage("Enviando versão mobile: " + completed + "/" + total + " partes...");
@@ -247,11 +247,11 @@ function AdminGames() {
               <Label>Arquivo do jogo</Label>
               <Input
                 type="file"
-                accept=".zip,.html,.htm,.swf,application/zip,text/html,application/x-shockwave-flash"
+                accept=".zip,.html,.htm,.js,.jar,.swf,application/zip,text/html,text/javascript,application/javascript,application/java-archive,application/x-java-archive,application/x-shockwave-flash"
                 onChange={(e) => setGameFile(e.target.files?.[0] ?? null)}
               />
               <p className="mt-1 text-xs text-muted-foreground">
-                HTML para jogos de arquivo único, ZIP para jogos com assets ou SWF para jogos em Flash (executados pelo Ruffle).
+                HTML ou JS para jogos web, ZIP para jogos com assets, JAR para jogos Java compatíveis com o CheerpJ ou SWF para jogos em Flash (executados pelo Ruffle).
               </p>
             </div>
             <div className="sm:col-span-2 rounded-xl border border-border/70 bg-surface/50 p-4">
@@ -266,7 +266,7 @@ function AdminGames() {
                 <div className="mt-4">
                   <Label>Arquivo do jogo para celular / tablet</Label>
                   <Input className="mt-1" type="file" accept=".zip,.html,.htm,.swf,application/zip,text/html,application/x-shockwave-flash" onChange={(e) => setMobileGameFile(e.target.files?.[0] ?? null)} />
-                  <p className="mt-1 text-xs text-muted-foreground">Celulares e tablets serão direcionados para este arquivo.</p>
+                  <p className="mt-1 text-xs text-muted-foreground">Celulares e tablets serão direcionados para este arquivo. JS e JAR também são aceitos.</p>
                 </div>
               )}
             </div>
