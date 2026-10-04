@@ -1,11 +1,12 @@
 import { cp, mkdir, rm, copyFile, readdir, access } from "node:fs/promises";
+import { join } from "node:path";
 
 const root = process.cwd();
-const distServer = `${root}/dist/server`;
-const distClient = `${root}/dist/client`;
-const publicDir = `${root}/public`;
-const pagesPublic = `${root}/.output/public`;
-const pagesAssets = `${pagesPublic}/assets`;
+const distServer = join(root, "dist/server");
+const distClient = join(root, "dist/client");
+const publicDir = join(root, "public");
+const pagesPublic = join(root, ".output/public");
+const pagesAssets = join(pagesPublic, "assets");
 
 await rm(pagesPublic, { recursive: true, force: true });
 await mkdir(pagesAssets, { recursive: true });
@@ -17,17 +18,49 @@ try {
   // O projeto pode não ter uma pasta public.
 }
 
-await copyFile(`${distServer}/index.js`, `${pagesPublic}/_worker.js`);
-await cp(`${distServer}/assets`, pagesAssets, { recursive: true });
-await cp(`${distClient}/assets`, pagesAssets, { recursive: true, force: true });
+// O TanStack Start/Vite atual gera dist/server/server.js.
+// Mantemos index.js como fallback para versões/configurações anteriores.
+const serverCandidates = ["server.js", "index.js"];
+let serverEntry = null;
 
-for (const filename of await readdir(`${distClient}/assets`)) {
-  if (filename.endsWith(".css")) {
-    await copyFile(`${distClient}/assets/${filename}`, `${pagesPublic}/${filename}`);
+for (const filename of serverCandidates) {
+  try {
+    await access(join(distServer, filename));
+    serverEntry = filename;
+    break;
+  } catch {
+    // Tenta o próximo nome.
   }
 }
 
-const deployRedirect = `${root}/.wrangler/deploy/config.json`;
+if (!serverEntry) {
+  throw new Error(
+    `Bundle SSR não encontrado em ${distServer}. Esperado: ${serverCandidates.join(", ")}.`,
+  );
+}
+
+await copyFile(join(distServer, serverEntry), join(pagesPublic, "_worker.js"));
+await cp(join(distServer, "assets"), pagesAssets, {
+  recursive: true,
+  force: true,
+});
+await cp(join(distClient, "assets"), pagesAssets, {
+  recursive: true,
+  force: true,
+});
+
+for (const filename of await readdir(join(distClient, "assets"))) {
+  if (filename.endsWith(".css")) {
+    await copyFile(
+      join(distClient, "assets", filename),
+      join(pagesPublic, filename),
+    );
+  }
+}
+
+const deployRedirect = join(root, ".wrangler/deploy/config.json");
 await rm(deployRedirect, { force: true });
 
-console.log("Pages SSR output preparado com assets do SSR + client e arquivos public");
+console.log(
+  `Pages SSR output preparado usando dist/server/${serverEntry}, com assets do SSR + client e arquivos public`,
+);
