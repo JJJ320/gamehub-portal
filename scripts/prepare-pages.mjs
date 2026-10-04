@@ -27,4 +27,7 @@ for (const filename of await readdir(`${distClient}/assets`)) {
   }
 }
 
-const deployRedirect = `${root}/.wrangler/deploy/config.json`;\nawait rm(deployRedirect, { force: true });\n\nconsole.log("Pages SSR output preparado com assets do SSR + client e arquivos public");
+const deployRedirect = `${root}/.wrangler/deploy/config.json`;
+await rm(deployRedirect, { force: true });
+
+console.log("Pages SSR output preparado com assets do SSR + client e arquivos public");
