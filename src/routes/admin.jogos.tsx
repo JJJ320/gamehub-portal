@@ -139,12 +139,18 @@ function AdminGames() {
       if (gameFile) {
         const extension = gameFile.name.toLowerCase().split(".").pop();
         next.gameType = extension === "zip" ? "zip" : extension === "swf" ? "flash" : "html";
-        next.gameUrl = await uploadGameAsset(next.slug, "game", gameFile);
+        setMessage(gameFile.size > 50 * 1024 * 1024 ? "Enviando jogo grande em partes..." : "Enviando jogo...");
+        next.gameUrl = await uploadGameAsset(next.slug, "game", gameFile, (completed, total) => {
+          setMessage("Enviando jogo grande: " + completed + "/" + total + " partes...");
+        });
       }
       if (next.mobileVersionEnabled && mobileGameFile) {
         const extension = mobileGameFile.name.toLowerCase().split(".").pop();
         next.mobileGameType = extension === "zip" ? "zip" : extension === "swf" ? "flash" : "html";
-        next.mobileGameUrl = await uploadGameAsset(next.slug, "game-mobile", mobileGameFile);
+        setMessage(mobileGameFile.size > 50 * 1024 * 1024 ? "Enviando versão mobile em partes..." : "Enviando versão mobile...");
+        next.mobileGameUrl = await uploadGameAsset(next.slug, "game-mobile", mobileGameFile, (completed, total) => {
+          setMessage("Enviando versão mobile: " + completed + "/" + total + " partes...");
+        });
       } else if (!next.mobileVersionEnabled) {
         next.mobileGameUrl = "";
         next.mobileGameType = undefined;

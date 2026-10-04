@@ -21,6 +21,9 @@ export type GameDocument = Game & {
 
 const gamesCollection = collection(db, "games");
 const MAX_GAME_FILE_BYTES = 50 * 1024 * 1024;
+const LARGE_GAME_THRESHOLD_BYTES = 50 * 1024 * 1024;
+const LARGE_GAME_CHUNK_BYTES = 20 * 1024 * 1024;
+const MAX_LARGE_GAME_PARTS = 48;
 
 function timestampToIso(value: unknown): string | undefined {
   const timestamp = value as Timestamp | undefined;
@@ -114,33 +117,112 @@ export async function deleteGame(slug: string): Promise<void> {
   await deleteDoc(doc(db, "games", slug));
 }
 
-async function uploadGameFile(slug: string, file: File, kind: "game" | "game-mobile" = "game"): Promise<string> {
-  if (file.size > MAX_GAME_FILE_BYTES) {
-    throw new Error("Arquivo muito grande. O limite do GameHub é 50 MB por arquivo.");
-  }
-
+async function uploadGameFile(
+  slug: string,
+  file: File,
+  kind: "game" | "game-mobile" = "game",
+  onProgress?: (completed: number, total: number) => void,
+): Promise<string> {
   const user = auth.currentUser;
   if (!user) throw new Error("Faça login antes de enviar o jogo.");
 
-  const idToken = await user.getIdToken();
   const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-  const response = await fetch(
-    "/api/game-upload?slug=" + encodeURIComponent(slug) +
-      "&kind=" + kind + "&filename=" + encodeURIComponent(safeName),
-    {
-      method: "PUT",
-      headers: {
-        Authorization: "Bearer " + idToken,
-        "Content-Type": file.type || "application/octet-stream",
-        "Content-Length": String(file.size),
-      },
-      body: file,
-    },
-  );
+  const contentType = file.type || "application/octet-stream";
 
-  const result = (await response.json().catch(() => ({}))) as { url?: string; error?: string };
-  if (!response.ok || !result.url) throw new Error(result.error ?? "Falha no upload do jogo.");
-  return result.url;
+  if (file.size <= LARGE_GAME_THRESHOLD_BYTES) {
+    if (file.size > MAX_GAME_FILE_BYTES) {
+      throw new Error("Arquivo muito grande. Arquivos acima de 25 MB usam o envio em partes.");
+    }
+
+    const idToken = await user.getIdToken();
+    const response = await fetch(
+      "/api/game-upload?slug=" + encodeURIComponent(slug) +
+        "&kind=" + kind + "&filename=" + encodeURIComponent(safeName),
+      {
+        method: "PUT",
+        headers: {
+          Authorization: "Bearer " + idToken,
+          "Content-Type": contentType,
+          "Content-Length": String(file.size),
+        },
+        body: file,
+      },
+    );
+
+    const result = (await response.json().catch(() => ({}))) as { url?: string; error?: string };
+    if (!response.ok || !result.url) throw new Error(result.error ?? "Falha no upload do jogo.");
+    onProgress?.(1, 1);
+    return result.url;
+  }
+
+  const totalParts = Math.ceil(file.size / LARGE_GAME_CHUNK_BYTES);
+  if (totalParts > MAX_LARGE_GAME_PARTS) {
+    throw new Error("Este arquivo é grande demais para o sistema de partes atual. O máximo é aproximadamente 960 MB.");
+  }
+
+  const idToken = await user.getIdToken();
+  let completed = 0;
+  const concurrency = 3;
+  const indexes = Array.from({ length: totalParts }, (_, index) => index);
+
+  const uploadPart = async (index: number) => {
+    const start = index * LARGE_GAME_CHUNK_BYTES;
+    const end = Math.min(file.size, start + LARGE_GAME_CHUNK_BYTES);
+    const chunk = file.slice(start, end);
+
+    for (let attempt = 1; attempt <= 3; attempt += 1) {
+      try {
+        const response = await fetch(
+          "/api/game-upload?slug=" + encodeURIComponent(slug) +
+            "&kind=" + kind +
+            "&filename=" + encodeURIComponent(safeName) +
+            "&chunkIndex=" + index +
+            "&totalParts=" + totalParts +
+            (index === 0 ? "&reset=1" : ""),
+          {
+            method: "PUT",
+            headers: {
+              Authorization: "Bearer " + idToken,
+              "Content-Type": contentType,
+            },
+            body: chunk,
+          },
+        );
+
+        const result = (await response.json().catch(() => ({}))) as { ok?: boolean; error?: string };
+        if (!response.ok || !result.ok) {
+          throw new Error(result.error ?? ("Falha ao enviar a parte " + (index + 1) + "/" + totalParts + "."));
+        }
+
+        completed += 1;
+        onProgress?.(completed, totalParts);
+        return;
+      } catch (error) {
+        if (attempt === 3) throw error;
+        await new Promise((resolve) => setTimeout(resolve, 800 * attempt));
+      }
+    }
+  };
+
+  let cursor = 0;
+  const worker = async () => {
+    while (true) {
+      const index = cursor++;
+      if (index >= indexes.length) return;
+      await uploadPart(index);
+    }
+  };
+
+  await Promise.all(Array.from({ length: Math.min(concurrency, totalParts) }, () => worker()));
+
+  return (
+    "/api/game-file?slug=" + encodeURIComponent(slug) +
+    "&kind=" + kind +
+    "&parts=" + totalParts +
+    "&filename=" + encodeURIComponent(safeName) +
+    "&size=" + file.size +
+    "&mime=" + encodeURIComponent(contentType)
+  );
 }
 
 async function uploadImageAsset(slug: string, kind: "cover" | "hero", file: File): Promise<string> {
@@ -178,8 +260,9 @@ export async function uploadGameAsset(
   slug: string,
   kind: "cover" | "hero" | "game" | "game-mobile",
   file: File,
+  onProgress?: (completed: number, total: number) => void,
 ): Promise<string> {
   if (!auth.currentUser) throw new Error("Faça login antes de enviar o jogo.");
-  if (kind === "game" || kind === "game-mobile") return uploadGameFile(slug, file, kind);
+  if (kind === "game" || kind === "game-mobile") return uploadGameFile(slug, file, kind, onProgress);
   return uploadImageAsset(slug, kind, file);
 }

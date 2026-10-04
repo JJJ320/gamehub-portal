@@ -10,6 +10,7 @@ import {
 import { useEffect, type ReactNode } from "react";
 import appCss from "@/styles.css?url";
 import { AuthProvider } from "@/hooks/use-auth";
+import { registerLargeGameServiceWorker } from "@/lib/large-game-cache";
 
 const SITE_URL = "https://gamehub-portal.pages.dev";
 const SITE_NAME = "GameHub";
@@ -140,6 +141,11 @@ function RootShell({ children }: { children: ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+
+  useEffect(() => {
+    void registerLargeGameServiceWorker();
+  }, []);
+
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>

@@ -15,6 +15,9 @@ const FIREBASE_API_KEY = "AIzaSyA0Uy-AkpUlXFpXKar4nmdB9t7bFm__kxA";
 const SUPABASE_URL = "https://zijhmkurzpdlwzvpumdd.supabase.co";
 const SUPABASE_BUCKET = "gamehub-games";
 const MAX_UPLOAD_BYTES = 50 * 1024 * 1024;
+const LARGE_GAME_THRESHOLD_BYTES = 50 * 1024 * 1024;
+const LARGE_GAME_CHUNK_BYTES = 20 * 1024 * 1024;
+const MAX_LARGE_GAME_PARTS = 48;
 
 async function normalizeCatastrophicSsrResponse(response: Response): Promise<Response> {
   if (response.status < 500) return response;
@@ -105,6 +108,109 @@ function publicSupabaseUrl(path: string): string {
   return `${SUPABASE_URL}/storage/v1/object/public/${SUPABASE_BUCKET}/${encodedPath}`;
 }
 
+function getChunkObjectPath(slug: string, kind: "game" | "game-mobile", index: number): string {
+  return "games/" + slug + "/chunks/" + kind + "/part-" + String(index).padStart(5, "0") + ".part";
+}
+
+function publicGameChunkUrl(slug: string, kind: "game" | "game-mobile", index: number): string {
+  return publicSupabaseUrl(getChunkObjectPath(slug, kind, index));
+}
+
+async function uploadGameChunkToSupabase(
+  request: Request,
+  slug: string,
+  kind: "game" | "game-mobile",
+  index: number,
+  serviceRoleKey: string,
+): Promise<Response> {
+  if (!request.body) return json({ error: "Parte ausente." }, 400);
+  const contentLength = Number(request.headers.get("content-length") ?? "0");
+  if (contentLength > LARGE_GAME_CHUNK_BYTES) {
+    return json({ error: "Parte muito grande. O máximo por parte é 20 MB." }, 413);
+  }
+
+  const objectPath = getChunkObjectPath(slug, kind, index);
+  const storageUrl =
+    SUPABASE_URL + "/storage/v1/object/" + SUPABASE_BUCKET + "/" +
+    objectPath.split("/").map(encodeURIComponent).join("/");
+
+  const uploadResponse = await fetch(storageUrl, {
+    method: "POST",
+    headers: {
+      Authorization: "Bearer " + serviceRoleKey,
+      apikey: serviceRoleKey,
+      "Content-Type": request.headers.get("content-type") || "application/octet-stream",
+      "Cache-Control": "public, max-age=31536000, immutable",
+      "x-upsert": "true",
+    },
+    body: request.body,
+  });
+
+  if (!uploadResponse.ok) {
+    console.error("Supabase chunk upload failed:", await uploadResponse.text());
+    return json({ error: "Falha ao enviar uma parte do jogo para o Storage." }, 502);
+  }
+
+  return json({ ok: true, index, url: publicGameChunkUrl(slug, kind, index) }, 201);
+}
+
+function parsePositiveInt(value: string | null, fallback = 0): number {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed >= 0 ? parsed : fallback;
+}
+
+async function streamLargeGameFile(
+  slug: string,
+  kind: "game" | "game-mobile",
+  parts: number,
+  filename: string,
+  mime: string,
+): Promise<Response> {
+  if (!parts || parts > MAX_LARGE_GAME_PARTS) {
+    return json({ error: "Quantidade de partes inválida. O máximo é " + MAX_LARGE_GAME_PARTS + "." }, 400);
+  }
+
+  const stream = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      try {
+        for (let index = 0; index < parts; index += 1) {
+          const response = await fetch(publicGameChunkUrl(slug, kind, index), {
+            headers: { Accept: "application/octet-stream" },
+          });
+          if (!response.ok || !response.body) {
+            throw new Error("Parte " + (index + 1) + "/" + parts + " indisponível.");
+          }
+
+          const reader = response.body.getReader();
+          try {
+            while (true) {
+              const result = await reader.read();
+              if (result.done) break;
+              if (result.value) controller.enqueue(result.value);
+            }
+          } finally {
+            reader.releaseLock();
+          }
+        }
+        controller.close();
+      } catch (error) {
+        console.error("Large game stream failed:", error);
+        controller.error(error);
+      }
+    },
+  });
+
+  const headers = new Headers({
+    "Content-Type": mime || "application/octet-stream",
+    "Content-Disposition": "inline; filename=\"" + filename.replace(/["\\]/g, "_") + "\"",
+    "Cache-Control": "public, max-age=31536000, immutable",
+    "Accept-Ranges": "bytes",
+    "X-GameHub-Large-Game": "1",
+  });
+
+  return new Response(stream, { status: 200, headers });
+}
+
 async function uploadToSupabase(
   request: Request,
   slug: string,
@@ -147,7 +253,7 @@ async function uploadToSupabase(
   return json({ url: publicSupabaseUrl(objectPath), key: objectPath }, 201);
 }
 
-async function deleteSupabaseGameAssets(slug: string, serviceRoleKey: string): Promise<void> {
+async function deleteSupabaseObjectsWithPrefix(prefix: string, serviceRoleKey: string): Promise<void> {
   const listResponse = await fetch(
     `${SUPABASE_URL}/storage/v1/object/list/${SUPABASE_BUCKET}`,
     {
@@ -157,7 +263,7 @@ async function deleteSupabaseGameAssets(slug: string, serviceRoleKey: string): P
         apikey: serviceRoleKey,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ prefix: `games/${slug}/`, limit: 100, offset: 0 }),
+      body: JSON.stringify({ prefix, limit: 100, offset: 0 }),
     },
   );
 
@@ -169,7 +275,7 @@ async function deleteSupabaseGameAssets(slug: string, serviceRoleKey: string): P
   const paths = objects
     .map((object) => object.name?.replace(/^\/+/, ""))
     .filter((name): name is string => Boolean(name))
-    .map((name) => name.startsWith(`games/${slug}/`) ? name : `games/${slug}/${name}`);
+    .map((name) => name.startsWith(prefix) ? name : prefix + name);
 
   if (!paths.length) return;
 
@@ -192,6 +298,10 @@ async function deleteSupabaseGameAssets(slug: string, serviceRoleKey: string): P
   }
 }
 
+async function deleteSupabaseGameAssets(slug: string, serviceRoleKey: string): Promise<void> {
+  await deleteSupabaseObjectsWithPrefix("games/" + slug + "/", serviceRoleKey);
+}
+
 async function handleGameAsset(request: Request, env: WorkerEnv): Promise<Response | null> {
   const url = new URL(request.url);
 
@@ -204,6 +314,40 @@ async function handleGameAsset(request: Request, env: WorkerEnv): Promise<Respon
     if (!idToken) return json({ owner: false }, 401);
 
     return json({ owner: await isGameOwner(idToken) });
+  }
+
+  if (url.pathname === "/api/game-chunk") {
+    if (request.method !== "GET") {
+      return new Response("Method Not Allowed", { status: 405, headers: { Allow: "GET" } });
+    }
+    const slug = sanitizeSegment(url.searchParams.get("slug") ?? "");
+    const kind = url.searchParams.get("kind");
+    const index = parsePositiveInt(url.searchParams.get("index"), -1);
+    if (!slug || !["game", "game-mobile"].includes(kind ?? "") || index < 0) {
+      return json({ error: "Parâmetros inválidos." }, 400);
+    }
+    const chunkUrl = publicGameChunkUrl(slug, kind as "game" | "game-mobile", index);
+    const response = await fetch(chunkUrl);
+    if (!response.ok) return new Response("Parte não encontrada.", { status: response.status });
+    const headers = new Headers(response.headers);
+    headers.set("Cache-Control", "public, max-age=31536000, immutable");
+    headers.set("X-GameHub-Chunk", String(index));
+    return new Response(response.body, { status: response.status, headers });
+  }
+
+  if (url.pathname === "/api/game-file") {
+    if (request.method !== "GET") {
+      return new Response("Method Not Allowed", { status: 405, headers: { Allow: "GET" } });
+    }
+    const slug = sanitizeSegment(url.searchParams.get("slug") ?? "");
+    const kind = url.searchParams.get("kind");
+    const parts = parsePositiveInt(url.searchParams.get("parts"), 0);
+    const filename = sanitizeSegment(url.searchParams.get("filename") ?? "game.bin");
+    const mime = url.searchParams.get("mime") ?? "application/octet-stream";
+    if (!slug || !["game", "game-mobile"].includes(kind ?? "") || !parts) {
+      return json({ error: "Arquivo grande inválido." }, 400);
+    }
+    return streamLargeGameFile(slug, kind as "game" | "game-mobile", parts, filename, mime);
   }
 
   if (url.pathname === "/api/game-upload") {
@@ -223,9 +367,33 @@ async function handleGameAsset(request: Request, env: WorkerEnv): Promise<Respon
     const slug = sanitizeSegment(url.searchParams.get("slug") ?? "");
     const kind = url.searchParams.get("kind");
     const filename = sanitizeSegment(url.searchParams.get("filename") ?? "game.bin");
+    const chunkIndex = url.searchParams.get("chunkIndex");
+    const totalParts = url.searchParams.get("totalParts");
 
     if (!slug || !["cover", "hero", "game", "game-mobile"].includes(kind ?? "")) {
       return json({ error: "Slug inválido." }, 400);
+    }
+
+    if ((kind === "game" || kind === "game-mobile") && chunkIndex !== null) {
+      const index = parsePositiveInt(chunkIndex, -1);
+      const parts = parsePositiveInt(totalParts, 0);
+      const reset = url.searchParams.get("reset") === "1";
+      if (index === 0 && reset) {
+        await deleteSupabaseObjectsWithPrefix(
+          "games/" + slug + "/chunks/" + kind + "/",
+          env.SUPABASE_SERVICE_ROLE_KEY,
+        );
+      }
+      if (index < 0 || !parts || parts > MAX_LARGE_GAME_PARTS || index >= parts) {
+        return json({ error: "Informações de partes inválidas." }, 400);
+      }
+      return uploadGameChunkToSupabase(
+        request,
+        slug,
+        kind as "game" | "game-mobile",
+        index,
+        env.SUPABASE_SERVICE_ROLE_KEY,
+      );
     }
 
     return uploadToSupabase(

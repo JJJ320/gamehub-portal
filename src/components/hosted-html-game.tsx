@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import JSZip from "jszip";
+import { isLargeGameUrl, prepareLargeGameCache } from "@/lib/large-game-cache";
 
 type HostedHtmlGameProps = {
   url: string;
@@ -232,6 +233,7 @@ async function buildHtmlDocument(url: string): Promise<string> {
 export function HostedHtmlGame({ url, type, title }: HostedHtmlGameProps) {
   const [srcDoc, setSrcDoc] = useState("");
   const [error, setError] = useState("");
+  const [largeGameProgress, setLargeGameProgress] = useState<{ completed: number; total: number } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -240,6 +242,16 @@ export function HostedHtmlGame({ url, type, title }: HostedHtmlGameProps) {
 
     const load = async () => {
       try {
+        if (isLargeGameUrl(url)) {
+          setLargeGameProgress({ completed: 0, total: Number(new URL(url, window.location.origin).searchParams.get("parts") || "0") });
+          await prepareLargeGameCache(url, (progress) => {
+            if (!cancelled) {
+              setLargeGameProgress({ completed: progress.completed, total: progress.total });
+            }
+          });
+          if (!cancelled) setLargeGameProgress(null);
+        }
+
         const html = type === "zip" ? await buildZipHtml(url) : await buildHtmlDocument(url);
         if (!cancelled) setSrcDoc(html);
       } catch (loadError) {
@@ -265,6 +277,25 @@ export function HostedHtmlGame({ url, type, title }: HostedHtmlGameProps) {
   }
 
   if (!srcDoc) {
+    if (largeGameProgress) {
+      const percent = largeGameProgress.total > 0
+        ? Math.round((largeGameProgress.completed / largeGameProgress.total) * 100)
+        : 0;
+      return (
+        <div className="grid size-full place-items-center p-6 text-center">
+          <div className="w-full max-w-md">
+            <p className="text-sm font-semibold text-foreground">Preparando jogo grande...</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {largeGameProgress.completed} de {largeGameProgress.total} partes baixadas · {percent}%
+            </p>
+            <div className="mt-4 h-2 overflow-hidden rounded-full bg-secondary">
+              <div className="h-full rounded-full bg-primary transition-all" style={{ width: percent + "%" }} />
+            </div>
+            <p className="mt-3 text-xs text-muted-foreground">As partes ficam armazenadas no cache deste navegador para as próximas partidas.</p>
+          </div>
+        </div>
+      );
+    }
     return <div className="grid size-full place-items-center text-sm text-muted-foreground">Carregando jogo...</div>;
   }
 
