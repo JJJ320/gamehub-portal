@@ -73,13 +73,15 @@ export async function getGameDocument(slug: string): Promise<GameDocument | null
 
 export async function saveGame(game: GameDocument): Promise<void> {
   const gameRef = doc(db, "games", game.slug);
-  const payload: Record<string, unknown> = {
-    ...game,
-    metricsInitialized: true,
-    updatedAt: serverTimestamp(),
-  };
+'  const payload: Record<string, unknown> = Object.fromEntries(
+    Object.entries({
+      ...game,
+      metricsInitialized: true,
+      updatedAt: serverTimestamp(),
+    }).filter(([, value]) => value !== undefined),
+  );
 
-  delete payload.createdAt;
+  delete payload.createdAt;'
 
   const existing = await getDocs(query(gamesCollection, where("slug", "==", game.slug)));
   const existingData = existing.empty ? null : existing.docs[0].data();
