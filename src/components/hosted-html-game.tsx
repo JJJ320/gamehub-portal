@@ -240,23 +240,46 @@ async function buildJsDocument(url: string): Promise<string> {
 }
 
 async function buildJarDocument(url: string, title: string): Promise<string> {
-  const encodedUrl = JSON.stringify(url);
+  // CheerpJ expects graphical Java applications to have an explicit display
+  // container. The /app/ virtual filesystem maps to the GameHub origin.
+  const parsed = new URL(url, window.location.origin);
+  const appPath = parsed.pathname + parsed.search;
+  const encodedAppPath = JSON.stringify("/app" + appPath);
   const encodedTitle = JSON.stringify(title);
-  return `<!doctype html><html><head><meta charset="utf-8"><title>${encodedTitle} — GameHub</title><style>html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#000;color:#fff;font-family:system-ui,sans-serif}#status{position:absolute;inset:0;display:grid;place-items:center;padding:24px;text-align:center}#status p{max-width:620px;line-height:1.5}</style><script src="https://cjrtnc.leaningtech.com/4.2/loader.js"></script></head><body><div id="status"><p>Carregando jogo Java...</p></div><script>
+
+  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${encodedTitle} — GameHub</title>
+<script src="https://cjrtnc.leaningtech.com/4.3/loader.js"></script>
+<style>
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#000;color:#fff;font-family:system-ui,sans-serif}
+#game-display{position:absolute;inset:0;width:100%;height:100%;overflow:hidden;background:#000}
+#status{position:absolute;z-index:10;inset:0;display:grid;place-items:center;padding:24px;text-align:center;background:#000}
+#status p{max-width:680px;line-height:1.5}
+</style></head><body>
+<div id="game-display"></div>
+<div id="status"><p>Preparando o Java e carregando o jogo...</p></div>
+<script type="module">
 (async function () {
   const status = document.getElementById("status");
+  const display = document.getElementById("game-display");
+
   try {
-    if (typeof cheerpjInit !== "function" || typeof cheerpjRunJar !== "function") {
-      throw new Error("O emulador Java não foi carregado.");
+    if (typeof cheerpjInit !== "function" || typeof cheerpjCreateDisplay !== "function" || typeof cheerpjRunJar !== "function") {
+      throw new Error("O runtime Java do navegador não foi carregado.");
     }
+
     await cheerpjInit();
-    status.remove();
-    await cheerpjRunJar(${encodedUrl});
+    cheerpjCreateDisplay(-1, -1, display);
+    if (status) status.remove();
+
+    await cheerpjRunJar(${encodedAppPath});
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    status.innerHTML = "<p><strong>Não foi possível executar este JAR no navegador.</strong><br>" +
-      "O arquivo pode exigir uma versão específica do Java ou recursos nativos incompatíveis.<br><br>" +
-      message + "</p>";
+    if (status) {
+      status.innerHTML = "<p><strong>Não foi possível executar este JAR no navegador.</strong><br>" +
+        "Este jogo pode exigir uma versão do Java, bibliotecas nativas ou dependências que o navegador não consegue executar.<br><br>" +
+        message + "</p>";
+      status.style.display = "grid";
+    }
     console.error("GameHub JAR:", error);
   }
 })();
