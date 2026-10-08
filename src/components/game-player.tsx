@@ -1,8 +1,10 @@
 import {
   Suspense,
+  useCallback,
   useEffect,
   useRef,
   useState,
+  type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from "react";
 import { Loader2, Maximize2, Minimize2 } from "lucide-react";
@@ -18,16 +20,62 @@ export function GamePlayer({ children, className }: GamePlayerProps) {
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
+  // Keep keyboard input directed at the active game surface. Browsers normally
+  // focus an iframe on click, but this is inconsistent for canvas-based games.
+  const focusGameSurface = useCallback(() => {
+    const wrapper = wrapperRef.current;
+    if (!wrapper) return;
+
+    const activeElement = document.activeElement;
+    if (
+      activeElement instanceof HTMLInputElement ||
+      activeElement instanceof HTMLTextAreaElement ||
+      activeElement instanceof HTMLSelectElement ||
+      (activeElement instanceof HTMLElement && activeElement.isContentEditable)
+    ) {
+      return;
+    }
+
+    const frame = wrapper.querySelector("iframe");
+    if (frame) {
+      frame.focus({ preventScroll: true });
+      return;
+    }
+
+    const canvas = wrapper.querySelector("canvas");
+    if (canvas) {
+      if (!canvas.hasAttribute("tabindex")) canvas.tabIndex = 0;
+      canvas.focus({ preventScroll: true });
+      return;
+    }
+
+    // Some React games listen on the document/window rather than a canvas.
+    wrapper.focus({ preventScroll: true });
+  }, []);
+
   useEffect(() => {
     const handleFullscreenChange = () => {
-      setIsFullscreen(document.fullscreenElement === wrapperRef.current);
+      const fullscreen = document.fullscreenElement === wrapperRef.current;
+      setIsFullscreen(fullscreen);
+      if (fullscreen) {
+        // Wait until the browser finishes changing fullscreen layout before
+        // restoring focus to the game. Do not intercept F11 or Escape.
+        window.requestAnimationFrame(focusGameSurface);
+      }
     };
 
     document.addEventListener("fullscreenchange", handleFullscreenChange);
     return () => {
       document.removeEventListener("fullscreenchange", handleFullscreenChange);
     };
-  }, []);
+  }, [focusGameSurface]);
+
+  const handlePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+    // Do not steal focus from the GameHub fullscreen/exit button.
+    if ((event.target as HTMLElement).closest("button")) return;
+    // Focus after the pointer interaction has reached the actual game surface.
+    window.requestAnimationFrame(focusGameSurface);
+  };
 
   const toggleFullscreen = async () => {
     try {
@@ -37,6 +85,7 @@ export function GamePlayer({ children, className }: GamePlayerProps) {
       }
 
       await wrapperRef.current?.requestFullscreen();
+      window.requestAnimationFrame(focusGameSurface);
     } catch (error) {
       console.error("Não foi possível alternar para tela cheia:", error);
     }
@@ -45,6 +94,8 @@ export function GamePlayer({ children, className }: GamePlayerProps) {
   return (
     <div
       ref={wrapperRef}
+      tabIndex={-1}
+      onPointerDown={handlePointerDown}
       className={cn(
         "relative w-full overflow-hidden rounded-2xl border border-border/70 bg-surface shadow-card",
         isFullscreen
