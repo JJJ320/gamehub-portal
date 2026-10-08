@@ -1,20 +1,11 @@
 import { useEffect, useState } from "react";
-import { games as legacyGames, type Game } from "@/data/games";
+import type { Game } from "@/data/games";
 import { listPublishedGames, type GameDocument } from "@/lib/firestore-games";
 
 let catalogCache: GameDocument[] | null = null;
 
-const legacyFallback = legacyGames.map((game) => ({
-  ...game,
-  rating: 0,
-  plays: 0,
-  uniquePlayers: 0,
-  ratingSum: 0,
-  ratingCount: 0,
-}));
-
 export function useGames() {
-  const [games, setGames] = useState<GameDocument[]>(catalogCache ?? legacyFallback);
+  const [games, setGames] = useState<GameDocument[]>(catalogCache ?? []);
 
   useEffect(() => {
     let active = true;
@@ -22,12 +13,13 @@ export function useGames() {
     void listPublishedGames()
       .then((remote) => {
         if (!active) return;
-        catalogCache = remote.length > 0 ? remote : legacyFallback;
-        setGames(catalogCache);
+        catalogCache = remote;
+        setGames(remote);
       })
       .catch((error) => {
         console.error("Falha ao carregar catálogo Firebase:", error);
-        if (active) setGames(legacyFallback);
+        // Keep the last successful Firestore catalog if Firebase is temporarily unavailable.
+        if (active && catalogCache) setGames(catalogCache);
       });
 
     const onPlayerCounted = (event: Event) => {
